@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model SiteSettings {
+  id             String  @id @default("default")
+  siteName       String
+  tagline        String  @default("")
+  phone          String  @default("")
+  whatsapp       String  @default("")
+  email          String  @default("")
+  address        String  @default("")
+  city           String  @default("")
+  instagram      String  @default("")
+  youtube        String  @default("")
+  tiktok         String  @default("")
+  showPrices     Boolean @default(true)
+  seoTitle       String  @default("")
+  seoDescription String  @default("")
+}
+
+model Service {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  shortDesc String
+  content   String
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Package {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  priceFrom Int?
+  currency  String   @default("TRY")
+  /// JSON array string
+  features  String   @default("[]")
+  highlight Boolean  @default(false)
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String
+  clientName   String?
+  location     String?
+  date         DateTime?
+  category     String
+  description  String   @default("")
+  published    Boolean  @default(true)
+  featured     Boolean  @default(false)
+  order        Int      @default(0)
+  galleryCount Int      @default(6)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String?
+  content   String
+  rating    Int      @default(5)
+  published Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Faq {
+  id        String  @id @default(cuid())
+  question  String
+  answer    String
+  order     Int     @default(0)
+  published Boolean @default(true)
+}
+
+model Inquiry {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  type      String   @default("OTHER")
+  eventDate String?
+  location  String?
+  message   String
+  budget    String?
+  status    String   @default("NEW")
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

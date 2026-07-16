@@ -1,0 +1,23 @@
+# Tek servis: Next.js site + SQLite veritabanı (aynı container)
+services:
+  fotocekim:
+    build: .
+    image: fotocekim:latest
+    container_name: fotocekim
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/fotocekim.db
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-FotoCekim}
+      NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-905000000000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fotocekim.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      # Kalıcı SQLite veritabanı
+      - fotocekim-data:/data
+    restart: unless-stopped
+
+volumes:
+  fotocekim-data:

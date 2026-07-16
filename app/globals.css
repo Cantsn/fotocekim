@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0b0b0c;
+  --foreground: #f4f0ea;
+  --muted: #a39e96;
+  --muted-bg: #161618;
+  --card: #141416;
+  --border: #2a2a2e;
+  --accent: #c4a574;
+  --accent-soft: #c4a57433;
+  --placeholder: #2c2c30;
+  --placeholder-line: #3a3a40;
+  --success: #6b9b7a;
+  --danger: #c45c5c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-bg: var(--muted-bg);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-placeholder: var(--placeholder);
+  --color-placeholder-line: var(--placeholder-line);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-display);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
