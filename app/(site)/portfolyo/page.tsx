@@ -32,7 +32,7 @@ export default async function PortfolyoPage({ searchParams }: Props) {
         <SectionHeading
           eyebrow="Portföy"
           title="Seçili projeler"
-          description="Fotoğraflar yüklendiğinde burada görünecek. Şimdilik gri yer tutucular."
+          description="Gerçek fotoğraflar yüklendikçe burada görünür."
         />
 
         <div className="mb-10 flex flex-wrap gap-2">
@@ -59,7 +59,16 @@ export default async function PortfolyoPage({ searchParams }: Props) {
                 href={`/portfolyo/${p.slug}`}
                 className="group overflow-hidden rounded-2xl border border-border bg-card"
               >
-                <MediaPlaceholder label={p.title} aspect="video" />
+                {p.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.coverUrl}
+                    alt={p.title}
+                    className="aspect-video w-full object-cover transition group-hover:opacity-90"
+                  />
+                ) : (
+                  <MediaPlaceholder label={p.title} aspect="video" />
+                )}
                 <div className="p-5">
                   <p className="text-xs tracking-wide text-accent uppercase">
                     {categoryLabel(p.category)}

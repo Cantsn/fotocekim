@@ -1,23 +1,29 @@
-import {
-  formatPrice,
-  getPublishedPackages,
-  getSiteSettings,
-} from "@/lib/data";
+import Link from "next/link";
+import { guardAdminPage } from "@/lib/admin-guard";
+import { formatPrice, getAllPackages } from "@/lib/data";
+import { deletePackageAction } from "@/lib/actions/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPaketlerPage() {
-  const [list, settings] = await Promise.all([
-    getPublishedPackages(),
-    getSiteSettings(),
-  ]);
+  await guardAdminPage("packages");
+  const list = await getAllPackages();
 
   return (
     <div>
-      <h1 className="font-serif text-3xl text-foreground">Paketler</h1>
-      <p className="mt-2 text-sm text-muted">
-        Fiyat gösterimi: {settings.showPrices ? "Açık" : "Kapalı"}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl text-foreground">Paketler</h1>
+          <p className="mt-2 text-sm text-muted">Fiyat, özellik ve vitrin ayarları.</p>
+        </div>
+        <Link
+          href="/admin/paketler/yeni"
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-background"
+        >
+          + Yeni paket
+        </Link>
+      </div>
+
       <div className="mt-8 grid gap-4 md:grid-cols-3">
         {list.map((p) => (
           <div key={p.id} className="rounded-2xl border border-border bg-card p-6">
@@ -30,11 +36,28 @@ export default async function AdminPaketlerPage() {
               )}
             </div>
             <p className="mt-2 text-accent">{formatPrice(p.priceFrom, p.currency)}</p>
-            <ul className="mt-4 space-y-1.5 text-xs text-muted">
-              {p.features.map((f) => (
+            <p className="mt-1 text-xs text-muted">
+              {p.published ? "Yayında" : "Taslak"} · sıra {p.order}
+            </p>
+            <ul className="mt-4 space-y-1 text-xs text-muted">
+              {p.features.slice(0, 4).map((f) => (
                 <li key={f}>• {f}</li>
               ))}
             </ul>
+            <div className="mt-5 flex gap-3">
+              <Link
+                href={`/admin/paketler/${p.id}`}
+                className="text-xs text-accent hover:underline"
+              >
+                Düzenle
+              </Link>
+              <form action={deletePackageAction}>
+                <input type="hidden" name="id" value={p.id} />
+                <button type="submit" className="text-xs text-danger hover:underline">
+                  Sil
+                </button>
+              </form>
+            </div>
           </div>
         ))}
       </div>

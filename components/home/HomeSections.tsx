@@ -128,11 +128,24 @@ export async function FeaturedWorkSection() {
                 i === 0 && "sm:col-span-2 lg:col-span-2",
               )}
             >
-              <MediaPlaceholder
-                label={p.title}
-                aspect={i === 0 ? "wide" : "video"}
-                className={i === 0 ? "min-h-[240px]" : undefined}
-              />
+              {p.coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.coverUrl}
+                  alt={p.title}
+                  className={
+                    i === 0
+                      ? "aspect-[21/9] min-h-[240px] w-full object-cover"
+                      : "aspect-video w-full object-cover"
+                  }
+                />
+              ) : (
+                <MediaPlaceholder
+                  label={p.title}
+                  aspect={i === 0 ? "wide" : "video"}
+                  className={i === 0 ? "min-h-[240px]" : undefined}
+                />
+              )}
               <div className="flex items-end justify-between gap-3 p-5">
                 <div>
                   <p className="text-xs tracking-wide text-accent uppercase">

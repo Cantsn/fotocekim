@@ -10,17 +10,16 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Login page is public
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+
   if (pathname.startsWith("/admin/login")) {
-    const session = request.cookies.get(SESSION_COOKIE)?.value;
-    if (session === "authenticated") {
+    if (session) {
       return NextResponse.redirect(new URL("/admin", request.url));
     }
     return NextResponse.next();
   }
 
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
-  if (session !== "authenticated") {
+  if (!session) {
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);

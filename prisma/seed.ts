@@ -1,11 +1,51 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import { ALL_PERMISSIONS, stringifyPermissions } from "../lib/permissions";
 
 const prisma = new PrismaClient();
 
+async function ensureOwner() {
+  const email = (process.env.ADMIN_EMAIL ?? "admin@fotocekim.com")
+    .trim()
+    .toLowerCase();
+  const password = process.env.ADMIN_PASSWORD ?? "admin123";
+  const existing = await prisma.user.findFirst({ where: { isOwner: true } });
+  if (existing) {
+    console.log("Owner zaten var:", existing.email);
+    return;
+  }
+  const byEmail = await prisma.user.findUnique({ where: { email } });
+  if (byEmail) {
+    await prisma.user.update({
+      where: { id: byEmail.id },
+      data: {
+        isOwner: true,
+        active: true,
+        permissions: stringifyPermissions(ALL_PERMISSIONS),
+      },
+    });
+    console.log("Mevcut kullanıcı owner yapıldı:", email);
+    return;
+  }
+  await prisma.user.create({
+    data: {
+      email,
+      name: "Yönetici",
+      passwordHash: await bcrypt.hash(password, 12),
+      isOwner: true,
+      active: true,
+      permissions: stringifyPermissions(ALL_PERMISSIONS),
+    },
+  });
+  console.log("Owner oluşturuldu:", email);
+}
+
 async function main() {
-  const existing = await prisma.service.count();
-  if (existing > 0) {
-    console.log("Seed atlandı: veritabanında zaten veri var.");
+  await ensureOwner();
+
+  const serviceCount = await prisma.service.count();
+  if (serviceCount > 0) {
+    console.log("İçerik seed atlandı (veri mevcut).");
     return;
   }
 
@@ -45,105 +85,56 @@ async function main() {
 - Aftermovie & highlight video
 - İsteğe bağlı drone sahneleri
 
-Teslimat süreleri ve albüm seçenekleri paketlere göre değişir. Tarih müsaitliği için erken iletişim önerilir.`,
+Teslimat süreleri ve albüm seçenekleri paketlere göre değişir.`,
       order: 1,
     },
     {
       slug: "nisan",
       title: "Nişan & Söz",
       shortDesc: "Lokasyon veya stüdyoda samimi, şık nişan hikâyesi.",
-      content: `Nişan ve söz törenlerinizi hem duygusal hem de estetik bir anlatıyla belgeleriz.
-
-- Çift portreleri
-- Aile kareleri
-- Mekân detayları
-- Kısa highlight video seçeneği
-
-İç mekân veya dış mekân fark etmeksizin ışık ve kompozisyona öncelik veririz.`,
+      content: `Nişan ve söz törenlerinizi hem duygusal hem de estetik bir anlatıyla belgeleriz.`,
       order: 2,
     },
     {
       slug: "dis-cekim",
       title: "Dış Çekim",
       shortDesc: "Çift, aile ve moda için planlı lokasyon çekimleri.",
-      content: `Gün batımı, sahil, şehir veya doğa — konseptinize uygun lokasyonlarda dış çekim.
-
-- Ön keşif / lokasyon önerisi
-- Stil & poz yönlendirmesi
-- Renk düzenleme ve seçki
-- Sosyal medya için dikey kareler
-
-Hava durumu planı ve yedek tarih seçenekleri görüşmede netleştirilir.`,
+      content: `Gün batımı, sahil, şehir veya doğa — konseptinize uygun lokasyonlarda dış çekim.`,
       order: 3,
     },
     {
       slug: "urun",
       title: "Ürün & Katalog",
       shortDesc: "E-ticaret ve marka katalogları için net, satan görseller.",
-      content: `Ürünlerinizi vitrinde ve online’da öne çıkaracak temiz katalog çekimleri.
-
-- Beyaz fon / lifestyle set
-- Detay ve texture close-up
-- Renk tutarlılığı
-- Hızlı teslimat seçenekleri
-
-Marka rehberinize (brand guideline) uygun ışık ve arka plan tercih edilebilir.`,
+      content: `Ürünlerinizi vitrinde ve online’da öne çıkaracak temiz katalog çekimleri.`,
       order: 4,
     },
     {
       slug: "dukkan",
       title: "Dükkan & Mekân",
       shortDesc: "Restoran, butik, otel ve showroom için mekân fotoğrafı.",
-      content: `İşletmenizin atmosferini yansıtan mekân ve vitrin çekimleri.
-
-- Geniş açı mekân
-- Detay & ambiyans
-- Menü / ürün entegrasyonu
-- Sosyal ve Google İşletme için optimize kareler
-
-Yoğun saat dışında planlama önerilir.`,
+      content: `İşletmenizin atmosferini yansıtan mekân ve vitrin çekimleri.`,
       order: 5,
     },
     {
       slug: "drone",
       title: "Drone Çekimi",
       shortDesc: "Hava görüntüleri ile düğün, mülk ve etkinliklere güç katın.",
-      content: `Drone ile sinematik hava sahneleri.
-
-- Düğün & etkinlik aerial
-- Mülk / arsa tanıtımı
-- Kurumsal lokasyon
-- Foto + video seçenekleri
-
-**Not:** Uçuşlar SHT-İHA kuralları ve yerel kısıtlamalara tabidir. İzin gerektiren alanlarda planlama önceden yapılır.`,
+      content: `Drone ile sinematik hava sahneleri.\n\n**Not:** Uçuşlar SHT-İHA kurallarına tabidir.`,
       order: 6,
     },
     {
       slug: "kurumsal",
       title: "Kurumsal & Etkinlik",
       shortDesc: "Lansman, kongre ve marka etkinliklerinde profesyonel belgeleme.",
-      content: `Marka etkinliklerinizi hızlı teslimat ve tutarlı görsel dil ile belgeleriz.
-
-- Konuşmacı & sahne
-- Networking anları
-- Basın / PR setleri
-- Same-day seçki (opsiyonel)
-
-Brief ve zaman çizelgesi etkinlik öncesi paylaşılmalıdır.`,
+      content: `Marka etkinliklerinizi hızlı teslimat ve tutarlı görsel dil ile belgeleriz.`,
       order: 7,
     },
     {
       slug: "portre",
       title: "Portre & Stüdyo",
       shortDesc: "CV, influencer ve aile portreleri — stüdyo veya doğal ışık.",
-      content: `Bireysel ve aile portrelerinde sakin, özgüvenli bir dil.
-
-- LinkedIn / CV portre
-- Influencer içerik seti
-- Aile & çocuk
-- Makeup / styling yönlendirme (opsiyonel)
-
-Kıyafet önerileri randevu öncesi iletilir.`,
+      content: `Bireysel ve aile portrelerinde sakin, özgüvenli bir dil.`,
       order: 8,
     },
   ];
@@ -157,28 +148,26 @@ Kıyafet önerileri randevu öncesi iletilir.`,
       {
         slug: "essential",
         name: "Essential",
+        description: "Kısa kapsamlı çekimler için.",
         priceFrom: 15000,
         features: JSON.stringify([
           "4 saat çekim",
           "1 fotoğrafçı",
           "150+ düzenlenmiş fotoğraf",
           "Online galeri",
-          "Temel renk düzenleme",
         ]),
-        highlight: false,
         order: 1,
       },
       {
         slug: "premium",
         name: "Premium",
+        description: "En çok tercih edilen paket.",
         priceFrom: 28000,
         features: JSON.stringify([
           "8 saat çekim",
           "Fotoğraf + 2. kamera",
           "300+ düzenlenmiş fotoğraf",
-          "Highlight video (2–3 dk)",
-          "Online galeri + USB",
-          "Ön görüşme & planlama",
+          "Highlight video",
         ]),
         highlight: true,
         order: 2,
@@ -186,17 +175,14 @@ Kıyafet önerileri randevu öncesi iletilir.`,
       {
         slug: "ultimate",
         name: "Ultimate",
+        description: "Tam gün foto + video + drone.",
         priceFrom: 45000,
         features: JSON.stringify([
           "Tam gün kapsam",
           "Foto + video ekibi",
           "Drone sahneleri*",
           "Aftermovie",
-          "Sınırsız seçki (makul kullanım)",
-          "Premium albüm seçeneği",
-          "Aynı gün teaser",
         ]),
-        highlight: false,
         order: 3,
       },
     ],
@@ -207,36 +193,37 @@ Kıyafet önerileri randevu öncesi iletilir.`,
       {
         slug: "elif-can-dugun",
         title: "Elif & Can — Bahçe Düğünü",
+        clientFirstName: "Elif",
+        clientLastName: "Can",
         clientName: "Elif & Can",
         location: "İstanbul",
+        plato: "Bahçe seti",
         date: new Date("2025-06-14"),
         category: "dugun",
-        description:
-          "Altın saat ışığında bahçe töreni, samimi aile anları ve sinematik aftermovie.",
+        description: "Altın saat ışığında bahçe töreni.",
         featured: true,
         order: 1,
-        galleryCount: 8,
       },
       {
         slug: "ayse-mert-nisan",
         title: "Ayşe & Mert Nişan",
+        clientFirstName: "Ayşe",
+        clientLastName: "Mert",
         location: "İzmir",
-        date: new Date("2025-04-20"),
         category: "nisan",
-        description: "Minimal dekor ve sıcak tonlarda nişan belgelemesi.",
+        description: "Minimal dekor nişan belgelemesi.",
         featured: true,
         order: 2,
-        galleryCount: 6,
       },
       {
         slug: "sahil-dis-cekim",
         title: "Sahil Dış Çekim",
         location: "Antalya",
+        plato: "Açık hava",
         category: "dis-cekim",
         description: "Gün batımı sahil portreleri.",
         featured: true,
         order: 3,
-        galleryCount: 6,
       },
       {
         slug: "butik-katalog",
@@ -245,43 +232,14 @@ Kıyafet önerileri randevu öncesi iletilir.`,
         description: "Lifestyle + clean product set.",
         featured: true,
         order: 4,
-        galleryCount: 9,
-      },
-      {
-        slug: "restoran-mekan",
-        title: "Restoran Mekân Seti",
-        category: "dukkan",
-        description: "Ambiyans, detay ve menü görselleri.",
-        featured: false,
-        order: 5,
-        galleryCount: 6,
       },
       {
         slug: "villa-drone",
         title: "Villa Drone Turu",
         category: "drone",
-        description: "Mülk tanıtımı için hava fotoğraf ve video.",
+        description: "Mülk tanıtımı hava çekimi.",
         featured: true,
-        order: 6,
-        galleryCount: 5,
-      },
-      {
-        slug: "lansman-2025",
-        title: "Marka Lansmanı 2025",
-        category: "kurumsal",
-        description: "Sahne, networking ve basın seti.",
-        featured: false,
-        order: 7,
-        galleryCount: 7,
-      },
-      {
-        slug: "studiyo-portre",
-        title: "Stüdyo Portre Serisi",
-        category: "portre",
-        description: "Temiz ışık, sade arka plan portreler.",
-        featured: false,
-        order: 8,
-        galleryCount: 4,
+        order: 5,
       },
     ],
   });
@@ -291,24 +249,21 @@ Kıyafet önerileri randevu öncesi iletilir.`,
       {
         name: "Elif & Can",
         role: "Gelin & Damat",
-        content:
-          "Düğün günümüzü hiç stres etmeden yaşadık. Kareler sinema gibi, ailemiz bayıldı.",
+        content: "Düğün günümüzü hiç stres etmeden yaşadık.",
         rating: 5,
         order: 1,
       },
       {
         name: "Deniz K.",
         role: "Butik sahibi",
-        content:
-          "Ürün çekimleri satışlarımızı doğrudan etkiledi. Süreç hızlı ve profesyoneldi.",
+        content: "Ürün çekimleri satışlarımızı doğrudan etkiledi.",
         rating: 5,
         order: 2,
       },
       {
         name: "Arda M.",
-        role: "Etkinlik organizatörü",
-        content:
-          "Drone ve yer ekibi senkron çalıştı. Teslimat söz verildiği gibi geldi.",
+        role: "Organizasyon",
+        content: "Drone ve yer ekibi senkron çalıştı.",
         rating: 5,
         order: 3,
       },
@@ -319,33 +274,18 @@ Kıyafet önerileri randevu öncesi iletilir.`,
     data: [
       {
         question: "Ne kadar önceden rezervasyon yapmalıyım?",
-        answer:
-          "Düğün ve yoğun sezon için 3–6 ay öncesi idealdir. Ürün ve stüdyo çekimlerinde genelde 1–2 hafta yeterlidir.",
+        answer: "Düğün için 3–6 ay, ürün çekiminde 1–2 hafta idealdir.",
         order: 1,
       },
       {
         question: "Fotoğraflar ne kadar sürede teslim edilir?",
-        answer:
-          "Pakete göre değişmekle birlikte seçki ve düzenleme genelde 2–4 hafta içinde tamamlanır. Acil teaser seçenekleri mevcuttur.",
+        answer: "Genelde 2–4 hafta içinde seçki ve düzenleme tamamlanır.",
         order: 2,
       },
       {
         question: "Drone her lokasyonda uçabiliyor mu?",
-        answer:
-          "Hayır. SHT-İHA kuralları ve yerel yasaklar geçerlidir. Uygun olmayan alanlarda alternatif plan sunulur.",
+        answer: "SHT-İHA kuralları ve yerel yasaklar geçerlidir.",
         order: 3,
-      },
-      {
-        question: "Fiyatlara KDV ve seyahat dâhil mi?",
-        answer:
-          "Listelenen tutarlar başlangıç fiyatıdır. Mesafe, süre, ekipman ve ekip büyüklüğüne göre teklif netleşir.",
-        order: 4,
-      },
-      {
-        question: "Ham dosyaları alabilir miyim?",
-        answer:
-          "Standart teslimat düzenlenmiş seçkidir. Ham dosya talepleri sözleşmede ayrıca belirtilir.",
-        order: 5,
       },
     ],
   });

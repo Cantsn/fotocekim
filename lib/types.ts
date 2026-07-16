@@ -1,13 +1,3 @@
-export type ServiceCategory =
-  | "dugun"
-  | "nisan"
-  | "dis-cekim"
-  | "urun"
-  | "dukkan"
-  | "drone"
-  | "kurumsal"
-  | "portre";
-
 export type InquiryType =
   | "WEDDING"
   | "PRODUCT"
@@ -24,7 +14,7 @@ export type InquiryStatus =
 
 export interface Service {
   id: string;
-  slug: ServiceCategory | string;
+  slug: string;
   title: string;
   shortDesc: string;
   content: string;
@@ -36,29 +26,39 @@ export interface Package {
   id: string;
   slug: string;
   name: string;
+  description?: string;
   priceFrom: number | null;
   currency: string;
   features: string[];
   highlight: boolean;
   order: number;
   published: boolean;
-  serviceSlug?: string;
+}
+
+export interface ProjectImage {
+  id: string;
+  url: string;
+  alt: string;
+  order: number;
 }
 
 export interface Project {
   id: string;
   slug: string;
   title: string;
+  clientFirstName?: string;
+  clientLastName?: string;
   clientName?: string;
   location?: string;
+  plato?: string;
   date?: string;
   category: string;
   description: string;
+  coverUrl?: string;
   published: boolean;
   featured: boolean;
   order: number;
-  /** Placeholder count for gallery (no real photos yet) */
-  galleryCount: number;
+  images: ProjectImage[];
 }
 
 export interface Testimonial {
@@ -93,6 +93,13 @@ export interface SiteSettings {
   showPrices: boolean;
   seoTitle: string;
   seoDescription: string;
+  smtpEnabled: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPassword: string;
+  smtpFrom: string;
+  smtpSecure: boolean;
 }
 
 export interface Inquiry {
@@ -107,5 +114,15 @@ export interface Inquiry {
   budget?: string;
   status: InquiryStatus;
   source?: string;
+  createdAt: string;
+}
+
+export interface TeamUser {
+  id: string;
+  email: string;
+  name: string;
+  isOwner: boolean;
+  active: boolean;
+  permissions: string[];
   createdAt: string;
 }

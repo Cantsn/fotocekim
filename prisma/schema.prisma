@@ -7,6 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  /// JSON string array of Permission keys. Owner ignores this (full access).
+  permissions  String   @default("[]")
+  isOwner      Boolean  @default(false)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model SiteSettings {
   id             String  @id @default("default")
   siteName       String
@@ -22,14 +35,22 @@ model SiteSettings {
   showPrices     Boolean @default(true)
   seoTitle       String  @default("")
   seoDescription String  @default("")
+  /// SMTP
+  smtpEnabled    Boolean @default(false)
+  smtpHost       String  @default("")
+  smtpPort       Int     @default(587)
+  smtpUser       String  @default("")
+  smtpPassword   String  @default("")
+  smtpFrom       String  @default("")
+  smtpSecure     Boolean @default(true)
 }
 
 model Service {
   id        String   @id @default(cuid())
   slug      String   @unique
   title     String
-  shortDesc String
-  content   String
+  shortDesc String   @default("")
+  content   String   @default("")
   order     Int      @default(0)
   published Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -37,35 +58,52 @@ model Service {
 }
 
 model Package {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  name      String
-  priceFrom Int?
-  currency  String   @default("TRY")
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String   @default("")
+  priceFrom   Int?
+  currency    String   @default("TRY")
   /// JSON array string
-  features  String   @default("[]")
-  highlight Boolean  @default(false)
-  order     Int      @default(0)
-  published Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  features    String   @default("[]")
+  highlight   Boolean  @default(false)
+  order       Int      @default(0)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Project {
-  id           String   @id @default(cuid())
-  slug         String   @unique
-  title        String
-  clientName   String?
-  location     String?
-  date         DateTime?
-  category     String
-  description  String   @default("")
-  published    Boolean  @default(true)
-  featured     Boolean  @default(false)
-  order        Int      @default(0)
-  galleryCount Int      @default(6)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  clientFirstName String?
+  clientLastName  String?
+  /// Eski alan / görünen tam isim yedek
+  clientName      String?
+  location        String?
+  /// Plato / set / stüdyo bilgisi
+  plato           String?
+  date            DateTime?
+  category        String    @default("dugun")
+  description     String    @default("")
+  coverUrl        String?
+  published       Boolean   @default(true)
+  featured        Boolean   @default(false)
+  order           Int       @default(0)
+  images          ProjectImage[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ProjectImage {
+  id        String   @id @default(cuid())
+  projectId String
+  url       String
+  alt       String   @default("")
+  order     Int      @default(0)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model Testimonial {

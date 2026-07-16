@@ -3,13 +3,15 @@ import type {
   Inquiry,
   Package,
   Project,
+  ProjectImage,
   Service,
   SiteSettings,
+  TeamUser,
   Testimonial,
 } from "./types";
 import { prisma } from "./prisma";
+import { parsePermissions } from "./permissions";
 
-/** Client bileşenler ve fallback için sabit ayarlar */
 export const defaultSiteSettings: SiteSettings = {
   siteName: process.env.NEXT_PUBLIC_SITE_NAME ?? "FotoCekim",
   tagline: "Anılarınız, sinema kalitesinde.",
@@ -25,15 +27,22 @@ export const defaultSiteSettings: SiteSettings = {
   seoTitle: "FotoCekim | Düğün, Dış Çekim, Ürün & Drone Fotoğrafçılığı",
   seoDescription:
     "Düğün, nişan, dış çekim, ürün/dükkan ve drone çekimleri. Premium fotoğraf ve video stüdyosu.",
+  smtpEnabled: false,
+  smtpHost: "",
+  smtpPort: 587,
+  smtpUser: "",
+  smtpPassword: "",
+  smtpFrom: "",
+  smtpSecure: true,
 };
 
-/** @deprecated use getSiteSettings() — client bileşen uyumu için alias */
 export const siteSettings = defaultSiteSettings;
 
 function mapPackage(p: {
   id: string;
   slug: string;
   name: string;
+  description?: string;
   priceFrom: number | null;
   currency: string;
   features: string;
@@ -51,6 +60,7 @@ function mapPackage(p: {
     id: p.id,
     slug: p.slug,
     name: p.name,
+    description: p.description ?? "",
     priceFrom: p.priceFrom,
     currency: p.currency,
     features,
@@ -60,58 +70,55 @@ function mapPackage(p: {
   };
 }
 
+function mapImages(
+  images: { id: string; url: string; alt: string; order: number }[],
+): ProjectImage[] {
+  return images
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((i) => ({ id: i.id, url: i.url, alt: i.alt, order: i.order }));
+}
+
 function mapProject(p: {
   id: string;
   slug: string;
   title: string;
+  clientFirstName: string | null;
+  clientLastName: string | null;
   clientName: string | null;
   location: string | null;
+  plato: string | null;
   date: Date | null;
   category: string;
   description: string;
+  coverUrl: string | null;
   published: boolean;
   featured: boolean;
   order: number;
-  galleryCount: number;
+  images?: { id: string; url: string; alt: string; order: number }[];
 }): Project {
+  const images = mapImages(p.images ?? []);
   return {
     id: p.id,
     slug: p.slug,
     title: p.title,
-    clientName: p.clientName ?? undefined,
+    clientFirstName: p.clientFirstName ?? undefined,
+    clientLastName: p.clientLastName ?? undefined,
+    clientName:
+      p.clientName ??
+      ([p.clientFirstName, p.clientLastName].filter(Boolean).join(" ") ||
+        undefined),
     location: p.location ?? undefined,
+    plato: p.plato ?? undefined,
     date: p.date ? p.date.toISOString().slice(0, 10) : undefined,
     category: p.category,
     description: p.description,
+    coverUrl: p.coverUrl ?? images[0]?.url,
     published: p.published,
     featured: p.featured,
     order: p.order,
-    galleryCount: p.galleryCount,
+    images,
   };
-}
-
-export async function getSiteSettings(): Promise<SiteSettings> {
-  try {
-    const row = await prisma.siteSettings.findUnique({ where: { id: "default" } });
-    if (!row) return defaultSiteSettings;
-    return {
-      siteName: row.siteName,
-      tagline: row.tagline,
-      phone: row.phone,
-      whatsapp: row.whatsapp,
-      email: row.email,
-      address: row.address,
-      city: row.city,
-      instagram: row.instagram,
-      youtube: row.youtube,
-      tiktok: row.tiktok,
-      showPrices: row.showPrices,
-      seoTitle: row.seoTitle,
-      seoDescription: row.seoDescription,
-    };
-  } catch {
-    return defaultSiteSettings;
-  }
 }
 
 function mapService(s: {
@@ -134,6 +141,37 @@ function mapService(s: {
   };
 }
 
+export async function getSiteSettings(): Promise<SiteSettings> {
+  try {
+    const row = await prisma.siteSettings.findUnique({ where: { id: "default" } });
+    if (!row) return defaultSiteSettings;
+    return {
+      siteName: row.siteName,
+      tagline: row.tagline,
+      phone: row.phone,
+      whatsapp: row.whatsapp,
+      email: row.email,
+      address: row.address,
+      city: row.city,
+      instagram: row.instagram,
+      youtube: row.youtube,
+      tiktok: row.tiktok,
+      showPrices: row.showPrices,
+      seoTitle: row.seoTitle,
+      seoDescription: row.seoDescription,
+      smtpEnabled: row.smtpEnabled,
+      smtpHost: row.smtpHost,
+      smtpPort: row.smtpPort,
+      smtpUser: row.smtpUser,
+      smtpPassword: row.smtpPassword,
+      smtpFrom: row.smtpFrom,
+      smtpSecure: row.smtpSecure,
+    };
+  } catch {
+    return defaultSiteSettings;
+  }
+}
+
 export async function getPublishedServices(): Promise<Service[]> {
   const rows = await prisma.service.findMany({
     where: { published: true },
@@ -142,10 +180,20 @@ export async function getPublishedServices(): Promise<Service[]> {
   return rows.map(mapService);
 }
 
+export async function getAllServices(): Promise<Service[]> {
+  const rows = await prisma.service.findMany({ orderBy: { order: "asc" } });
+  return rows.map(mapService);
+}
+
 export async function getServiceBySlug(slug: string): Promise<Service | null> {
   const row = await prisma.service.findFirst({
     where: { slug, published: true },
   });
+  return row ? mapService(row) : null;
+}
+
+export async function getServiceById(id: string): Promise<Service | null> {
+  const row = await prisma.service.findUnique({ where: { id } });
   return row ? mapService(row) : null;
 }
 
@@ -157,12 +205,31 @@ export async function getPublishedPackages(): Promise<Package[]> {
   return rows.map(mapPackage);
 }
 
+export async function getAllPackages(): Promise<Package[]> {
+  const rows = await prisma.package.findMany({ orderBy: { order: "asc" } });
+  return rows.map(mapPackage);
+}
+
+export async function getPackageById(id: string): Promise<Package | null> {
+  const row = await prisma.package.findUnique({ where: { id } });
+  return row ? mapPackage(row) : null;
+}
+
 export async function getPublishedProjects(category?: string): Promise<Project[]> {
   const rows = await prisma.project.findMany({
     where: {
       published: true,
       ...(category ? { category } : {}),
     },
+    include: { images: true },
+    orderBy: { order: "asc" },
+  });
+  return rows.map(mapProject);
+}
+
+export async function getAllProjects(): Promise<Project[]> {
+  const rows = await prisma.project.findMany({
+    include: { images: true },
     orderBy: { order: "asc" },
   });
   return rows.map(mapProject);
@@ -171,6 +238,7 @@ export async function getPublishedProjects(category?: string): Promise<Project[]
 export async function getFeaturedProjects(): Promise<Project[]> {
   const rows = await prisma.project.findMany({
     where: { published: true, featured: true },
+    include: { images: true },
     orderBy: { order: "asc" },
   });
   return rows.map(mapProject);
@@ -179,6 +247,15 @@ export async function getFeaturedProjects(): Promise<Project[]> {
 export async function getProjectBySlug(slug: string): Promise<Project | null> {
   const row = await prisma.project.findFirst({
     where: { slug, published: true },
+    include: { images: true },
+  });
+  return row ? mapProject(row) : null;
+}
+
+export async function getProjectById(id: string): Promise<Project | null> {
+  const row = await prisma.project.findUnique({
+    where: { id },
+    include: { images: true },
   });
   return row ? mapProject(row) : null;
 }
@@ -266,6 +343,19 @@ export async function addInquiry(
   };
 }
 
+export async function getTeamUsers(): Promise<TeamUser[]> {
+  const rows = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  return rows.map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    isOwner: u.isOwner,
+    active: u.active,
+    permissions: parsePermissions(u.permissions),
+    createdAt: u.createdAt.toISOString(),
+  }));
+}
+
 export function categoryLabel(slug: string): string {
   const map: Record<string, string> = {
     dugun: "Düğün",
@@ -290,3 +380,5 @@ export function formatPrice(amount: number | null, currency = "TRY"): string {
     }).format(amount) + "’den"
   );
 }
+
+export { CATEGORY_OPTIONS } from "./constants";

@@ -43,6 +43,29 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Admin panel light theme override */
+.admin-root[data-theme="light"] {
+  --background: #f7f5f1;
+  --foreground: #1a1917;
+  --muted: #6b6560;
+  --muted-bg: #efece6;
+  --card: #ffffff;
+  --border: #ddd6cb;
+  --accent: #9a7b45;
+  --accent-soft: #c4a57433;
+  --placeholder: #e5e0d8;
+  --placeholder-line: #d0c9bd;
+  --success: #3d7a52;
+  --danger: #b33b3b;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.admin-root[data-theme="dark"] {
+  color: var(--foreground);
+  background: var(--background);
+}
+
 ::selection {
   background: var(--accent-soft);
   color: var(--foreground);

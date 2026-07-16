@@ -4,26 +4,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
+import { ADMIN_NAV, type Permission } from "@/lib/permissions";
+import { ThemeToggleButton } from "@/components/admin/AdminThemeProvider";
 
-const links = [
-  { href: "/admin", label: "Dashboard", exact: true },
-  { href: "/admin/randevular", label: "Randevular" },
-  { href: "/admin/medya", label: "Medya" },
-  { href: "/admin/portfolyo", label: "Portföy" },
-  { href: "/admin/hizmetler", label: "Hizmetler" },
-  { href: "/admin/paketler", label: "Paketler" },
-  { href: "/admin/ayarlar", label: "Ayarlar" },
-];
-
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  userName,
+  permissions,
+  isOwner,
+}: {
+  children: React.ReactNode;
+  userName: string;
+  permissions: Permission[];
+  isOwner: boolean;
+}) {
   const pathname = usePathname();
 
+  const links = ADMIN_NAV.filter(
+    (l) => isOwner || permissions.includes(l.permission),
+  );
+
   return (
-    <div className="flex min-h-full flex-1 bg-background">
+    <div className="flex min-h-full flex-1">
       <aside className="hidden w-60 shrink-0 border-r border-border bg-muted-bg md:flex md:flex-col">
         <div className="border-b border-border px-5 py-5">
           <p className="font-serif text-lg text-foreground">FotoCekim</p>
-          <p className="text-xs text-muted">Admin Panel</p>
+          <p className="text-xs text-muted">Admin · {userName || "Panel"}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {links.map((l) => {
@@ -57,9 +63,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-8">
+        <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 md:px-8">
           <div className="flex flex-wrap gap-2 md:hidden">
-            {links.slice(0, 4).map((l) => (
+            {links.slice(0, 5).map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
@@ -69,9 +75,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </div>
-          <Link href="/" className="ml-auto text-xs text-muted hover:text-accent">
-            Siteyi gör →
-          </Link>
+          <div className="ml-auto flex items-center gap-3">
+            <ThemeToggleButton />
+            <Link href="/admin/profil" className="text-xs text-muted hover:text-accent">
+              Profil
+            </Link>
+            <Link href="/" className="text-xs text-muted hover:text-accent">
+              Siteyi gör →
+            </Link>
+          </div>
         </header>
         <div className="flex-1 px-4 py-8 md:px-8">{children}</div>
       </div>

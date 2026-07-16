@@ -38,14 +38,28 @@ export default async function ProjectDetailPage({ params }: Props) {
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
+  const gallery =
+    project.images.length > 0
+      ? project.images
+      : null;
+
   return (
     <div>
       <div className="relative">
-        <MediaPlaceholder
-          label={`${project.title} kapak`}
-          aspect="wide"
-          className="min-h-[48vh]"
-        />
+        {project.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={project.coverUrl}
+            alt={project.title}
+            className="min-h-[48vh] w-full object-cover aspect-[21/9]"
+          />
+        ) : (
+          <MediaPlaceholder
+            label={`${project.title} kapak`}
+            aspect="wide"
+            className="min-h-[48vh]"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <Container className="absolute inset-x-0 bottom-0 pb-10">
           <p className="text-xs tracking-[0.2em] text-accent uppercase">
@@ -55,7 +69,9 @@ export default async function ProjectDetailPage({ params }: Props) {
             {project.title}
           </h1>
           <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted">
+            {project.clientName && <span>{project.clientName}</span>}
             {project.location && <span>{project.location}</span>}
+            {project.plato && <span>Plato: {project.plato}</span>}
             {project.date && (
               <span>
                 {new Date(project.date).toLocaleDateString("tr-TR", {
@@ -64,7 +80,6 @@ export default async function ProjectDetailPage({ params }: Props) {
                 })}
               </span>
             )}
-            {project.clientName && <span>{project.clientName}</span>}
           </div>
         </Container>
       </div>
@@ -75,13 +90,23 @@ export default async function ProjectDetailPage({ params }: Props) {
         </p>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: project.galleryCount }).map((_, i) => (
-            <MediaPlaceholder
-              key={i}
-              label={`Galeri ${i + 1} — yüklenecek`}
-              aspect={i % 5 === 0 ? "portrait" : "video"}
-            />
-          ))}
+          {gallery
+            ? gallery.map((img) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={img.id}
+                  src={img.url}
+                  alt={img.alt || project.title}
+                  className="aspect-video w-full rounded-xl object-cover"
+                />
+              ))
+            : Array.from({ length: 6 }).map((_, i) => (
+                <MediaPlaceholder
+                  key={i}
+                  label={`Galeri ${i + 1} — yüklenecek`}
+                  aspect={i % 5 === 0 ? "portrait" : "video"}
+                />
+              ))}
         </div>
 
         <div className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-10">

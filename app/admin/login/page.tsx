@@ -13,9 +13,7 @@ export default function AdminLoginPage() {
         <p className="text-xs tracking-[0.2em] text-accent uppercase">Admin</p>
         <h1 className="mt-2 font-serif text-3xl text-foreground">Giriş yap</h1>
         <p className="mt-2 mb-8 text-sm text-muted">
-          Varsayılan: admin@fotocekim.com / admin123
-          <br />
-          (Ortam değişkenleriyle değiştirin)
+          Yönetim paneline erişmek için hesabınızla giriş yapın.
         </p>
         <LoginForm />
       </div>

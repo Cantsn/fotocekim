@@ -1,17 +1,28 @@
-import { isAdminAuthenticated } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
+import { parsePermissions } from "@/lib/permissions";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminThemeProvider } from "@/components/admin/AdminThemeProvider";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const authed = await isAdminAuthenticated();
+  const user = await getSessionUser();
 
-  // Login page renders without shell
-  if (!authed) {
-    return <>{children}</>;
+  if (!user) {
+    return <AdminThemeProvider>{children}</AdminThemeProvider>;
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminThemeProvider>
+      <AdminShell
+        userName={user.name || user.email}
+        permissions={parsePermissions(user.permissions)}
+        isOwner={user.isOwner}
+      >
+        {children}
+      </AdminShell>
+    </AdminThemeProvider>
+  );
 }
