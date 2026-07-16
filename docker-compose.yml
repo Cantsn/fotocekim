@@ -1,13 +1,26 @@
-# Tek servis: Next.js site + SQLite veritabanı (aynı container)
+# Coolify + local: tek servis (site + SQLite)
 services:
   fotocekim:
-    build: .
-    image: fotocekim:latest
-    container_name: fotocekim
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-FotoCekim}
+        NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-905000000000}
+        ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fotocekim.com}
+        ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    # Coolify kendi proje adıyla container oluşturur; sabit isim çakışmasın
+    # container_name: fotocekim
+    # Coolify reverse-proxy için expose yeterli; local için ports
     ports:
       - "${PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
       DATABASE_URL: file:/data/fotocekim.db
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-FotoCekim}
@@ -15,9 +28,20 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fotocekim.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     volumes:
-      # Kalıcı SQLite veritabanı
       - fotocekim-data:/data
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
 volumes:
   fotocekim-data:
