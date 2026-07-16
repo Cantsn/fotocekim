@@ -2,19 +2,22 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 
-export default function SiteLayout({
+export default async function SiteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [locale, t] = await Promise.all([getLocale(), getDictionary()]);
+
   return (
-    <LocaleProvider>
+    <LocaleProvider initialLocale={locale}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-white"
       >
-        İçeriğe atla
+        {t.nav.skip}
       </a>
       <SiteHeader />
       <main id="main" className="flex-1">

@@ -1,130 +1,251 @@
 import { prisma } from "@/lib/prisma";
 
-export type GoogleCalSettings = {
-  enabled: boolean;
-  calendarId: string;
-  apiKey: string;
-  embedUrl: string;
-  feedToken: string;
-};
+const SCOPES = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/userinfo.email",
+].join(" ");
 
-export async function getGoogleCalSettings(): Promise<GoogleCalSettings> {
-  try {
-    const s = await prisma.siteSettings.findUnique({ where: { id: "default" } });
-    return {
-      enabled: s?.googleCalEnabled ?? false,
-      calendarId: s?.googleCalId ?? "",
-      apiKey: s?.googleCalApiKey ?? "",
-      embedUrl: s?.googleCalEmbedUrl ?? "",
-      feedToken: s?.calendarFeedToken ?? "",
-    };
-  } catch {
-    return {
-      enabled: false,
-      calendarId: "",
-      apiKey: "",
-      embedUrl: "",
-      feedToken: "",
-    };
-  }
+function clientId() {
+  return process.env.GOOGLE_CLIENT_ID || "";
+}
+function clientSecret() {
+  return process.env.GOOGLE_CLIENT_SECRET || "";
+}
+function redirectUri(siteUrl: string) {
+  return (
+    process.env.GOOGLE_REDIRECT_URI ||
+    `${siteUrl.replace(/\/$/, "")}/api/google/callback`
+  );
 }
 
-/** Google FreeBusy — takvim herkese açık veya API key yetkili olmalı */
-export async function fetchGoogleBusySlots(
-  dateStr: string,
-): Promise<string[]> {
-  const cfg = await getGoogleCalSettings();
-  if (!cfg.enabled || !cfg.calendarId || !cfg.apiKey) return [];
+export function isGoogleOAuthConfigured() {
+  return Boolean(clientId() && clientSecret());
+}
 
-  const timeMin = new Date(`${dateStr}T00:00:00+03:00`).toISOString();
-  const timeMax = new Date(`${dateStr}T23:59:59+03:00`).toISOString();
+export function getGoogleAuthUrl(siteUrl: string, state = "fotocekim") {
+  const params = new URLSearchParams({
+    client_id: clientId(),
+    redirect_uri: redirectUri(siteUrl),
+    response_type: "code",
+    scope: SCOPES,
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+    state,
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
 
-  try {
-    const url = `https://www.googleapis.com/calendar/v3/freeBusy?key=${encodeURIComponent(cfg.apiKey)}`;
-    const res = await fetch(url, {
+export async function exchangeCodeForTokens(code: string, siteUrl: string) {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId(),
+      client_secret: clientSecret(),
+      redirect_uri: redirectUri(siteUrl),
+      grant_type: "authorization_code",
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  return res.json() as Promise<{
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    token_type: string;
+  }>;
+}
+
+export async function getGoogleCalConnection() {
+  const s = await prisma.siteSettings.findUnique({ where: { id: "default" } });
+  return {
+    enabled: s?.googleCalEnabled ?? false,
+    calendarId: s?.googleCalId || "primary",
+    refreshToken: s?.googleCalRefreshToken || "",
+    accessToken: s?.googleCalAccessToken || "",
+    expiry: s?.googleCalTokenExpiry ?? null,
+    email: s?.googleCalEmail || "",
+    connected: Boolean(s?.googleCalRefreshToken),
+  };
+}
+
+async function refreshAccessToken(refreshToken: string) {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId(),
+      client_secret: clientSecret(),
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    access_token: string;
+    expires_in: number;
+  }>;
+}
+
+export async function getValidAccessToken(): Promise<string | null> {
+  const conn = await getGoogleCalConnection();
+  if (!conn.refreshToken) return null;
+
+  const stillValid =
+    conn.accessToken &&
+    conn.expiry &&
+    conn.expiry.getTime() > Date.now() + 60_000;
+
+  if (stillValid) return conn.accessToken;
+
+  const refreshed = await refreshAccessToken(conn.refreshToken);
+  const expiry = new Date(Date.now() + refreshed.expires_in * 1000);
+  await prisma.siteSettings.update({
+    where: { id: "default" },
+    data: {
+      googleCalAccessToken: refreshed.access_token,
+      googleCalTokenExpiry: expiry,
+      googleCalEnabled: true,
+    },
+  });
+  return refreshed.access_token;
+}
+
+async function fetchUserEmail(accessToken: string) {
+  const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return "";
+  const data = (await res.json()) as { email?: string };
+  return data.email || "";
+}
+
+export async function saveGoogleTokens(opts: {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn: number;
+}) {
+  const email = await fetchUserEmail(opts.accessToken);
+  const existing = await prisma.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+  const data = {
+    googleCalEnabled: true,
+    googleCalAccessToken: opts.accessToken,
+    googleCalTokenExpiry: new Date(Date.now() + opts.expiresIn * 1000),
+    googleCalEmail: email,
+    ...(opts.refreshToken
+      ? { googleCalRefreshToken: opts.refreshToken }
+      : {}),
+  };
+  await prisma.siteSettings.upsert({
+    where: { id: "default" },
+    create: {
+      id: "default",
+      siteName: existing?.siteName || "FotoCekim",
+      ...data,
+      googleCalRefreshToken:
+        opts.refreshToken || existing?.googleCalRefreshToken || "",
+    },
+    update: data,
+  });
+}
+
+export async function disconnectGoogleCalendar() {
+  await prisma.siteSettings.update({
+    where: { id: "default" },
+    data: {
+      googleCalEnabled: false,
+      googleCalRefreshToken: "",
+      googleCalAccessToken: "",
+      googleCalTokenExpiry: null,
+      googleCalEmail: "",
+    },
+  });
+}
+
+function toRfc3339(date: string, time: string) {
+  // Europe/Istanbul offset +03:00 (fixed; DST simplified)
+  return `${date}T${time}:00+03:00`;
+}
+
+function endTime(time: string, durationMin = 60) {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + durationMin;
+  const eh = String(Math.floor(total / 60) % 24).padStart(2, "0");
+  const em = String(total % 60).padStart(2, "0");
+  return `${eh}:${em}`;
+}
+
+export async function createGoogleCalendarEvent(opts: {
+  title: string;
+  date: string;
+  time: string;
+  description?: string;
+  location?: string;
+  durationMinutes?: number;
+}): Promise<string | null> {
+  const token = await getValidAccessToken();
+  if (!token) return null;
+  const conn = await getGoogleCalConnection();
+  const calendarId = encodeURIComponent(conn.calendarId || "primary");
+  const start = toRfc3339(opts.date, opts.time);
+  const end = toRfc3339(
+    opts.date,
+    endTime(opts.time, opts.durationMinutes ?? 60),
+  );
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
+    {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        timeMin,
-        timeMax,
-        timeZone: "Europe/Istanbul",
-        items: [{ id: cfg.calendarId }],
+        summary: opts.title,
+        description: opts.description || "",
+        location: opts.location || "",
+        start: { dateTime: start, timeZone: "Europe/Istanbul" },
+        end: { dateTime: end, timeZone: "Europe/Istanbul" },
       }),
       cache: "no-store",
-    });
-    if (!res.ok) {
-      console.error("Google freeBusy failed", await res.text());
-      return [];
-    }
-    const data = (await res.json()) as {
-      calendars?: Record<
-        string,
-        { busy?: { start: string; end: string }[] }
-      >;
-    };
-    const busy = data.calendars?.[cfg.calendarId]?.busy ?? [];
-    // Map busy ranges to HH:mm hours roughly
-    const busyHours = new Set<string>();
-    for (const b of busy) {
-      const start = new Date(b.start);
-      const end = new Date(b.end);
-      for (
-        let t = new Date(start);
-        t < end;
-        t.setMinutes(t.getMinutes() + 30)
-      ) {
-        const h = String(t.getHours()).padStart(2, "0");
-        const m = String(t.getMinutes()).padStart(2, "0");
-        // floor to hour for matching our slots
-        busyHours.add(`${h}:${m}`);
-        busyHours.add(`${h}:00`);
-      }
-    }
-    return [...busyHours];
-  } catch (e) {
-    console.error("Google freeBusy error", e);
-    return [];
-  }
-}
-
-/** Google Calendar “etkinlik ekle” deep link (OAuth gerekmez) */
-export function googleAddEventUrl(opts: {
-  title: string;
-  date: string; // YYYY-MM-DD
-  time?: string; // HH:mm
-  durationMinutes?: number;
-  details?: string;
-  location?: string;
-}) {
-  const duration = opts.durationMinutes ?? 60;
-  const [y, mo, d] = opts.date.split("-").map(Number);
-  let start = new Date(y, mo - 1, d, 10, 0, 0);
-  if (opts.time) {
-    const [hh, mm] = opts.time.split(":").map(Number);
-    start = new Date(y, mo - 1, d, hh, mm, 0);
-  }
-  const end = new Date(start.getTime() + duration * 60_000);
-
-  const fmt = (dt: Date) => {
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${dt.getFullYear()}${p(dt.getMonth() + 1)}${p(dt.getDate())}T${p(dt.getHours())}${p(dt.getMinutes())}00`;
-  };
-
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: opts.title,
-    dates: `${fmt(start)}/${fmt(end)}`,
-    details: opts.details ?? "",
-    location: opts.location ?? "",
-    ctz: "Europe/Istanbul",
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
-export function ensureFeedToken(): string {
-  return (
-    Math.random().toString(36).slice(2) +
-    Math.random().toString(36).slice(2) +
-    Date.now().toString(36)
+    },
   );
+  if (!res.ok) {
+    console.error("Google create event failed", await res.text());
+    return null;
+  }
+  const data = (await res.json()) as { id?: string };
+  return data.id || null;
+}
+
+export async function deleteGoogleCalendarEvent(
+  eventId: string,
+): Promise<boolean> {
+  const token = await getValidAccessToken();
+  if (!token || !eventId) return false;
+  const conn = await getGoogleCalConnection();
+  const calendarId = encodeURIComponent(conn.calendarId || "primary");
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    },
+  );
+  return res.ok || res.status === 404;
+}
+
+/** Remove freebusy usage entirely */
+export async function fetchGoogleBusySlots(_dateStr: string): Promise<string[]> {
+  return [];
 }

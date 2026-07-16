@@ -49,21 +49,56 @@ export function hasPermission(
   return parsePermissions(user.permissions).includes(permission);
 }
 
-/** Nav items with required permission */
-export const ADMIN_NAV: {
+export type AdminNavItem = {
   href: string;
   label: string;
   permission: Permission;
   exact?: boolean;
-}[] = [
-  { href: "/admin", label: "Dashboard", permission: "dashboard", exact: true },
-  { href: "/admin/takvim", label: "Takvim", permission: "inquiries" },
-  { href: "/admin/randevular", label: "Randevular", permission: "inquiries" },
-  { href: "/admin/portfolyo", label: "Portföy", permission: "portfolio" },
-  { href: "/admin/hizmetler", label: "Hizmetler", permission: "services" },
-  { href: "/admin/paketler", label: "Paketler", permission: "packages" },
-  { href: "/admin/medya", label: "Medya", permission: "media" },
-  { href: "/admin/ekip", label: "Ekip", permission: "team" },
-  { href: "/admin/ayarlar", label: "Site ayarları", permission: "settings" },
-  { href: "/admin/profil", label: "Profilim", permission: "dashboard" },
+};
+
+export type AdminNavGroup = {
+  id: string;
+  label: string;
+  items: AdminNavItem[];
+};
+
+/** Kategorili admin menü */
+export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
+  {
+    id: "overview",
+    label: "Genel",
+    items: [
+      { href: "/admin", label: "Dashboard", permission: "dashboard", exact: true },
+      { href: "/admin/profil", label: "Profilim", permission: "dashboard" },
+    ],
+  },
+  {
+    id: "booking",
+    label: "Randevu",
+    items: [
+      { href: "/admin/takvim", label: "Takvim", permission: "inquiries" },
+      { href: "/admin/randevular", label: "Randevular", permission: "inquiries" },
+    ],
+  },
+  {
+    id: "content",
+    label: "İçerik",
+    items: [
+      { href: "/admin/portfolyo", label: "Portföy", permission: "portfolio" },
+      { href: "/admin/hizmetler", label: "Hizmetler", permission: "services" },
+      { href: "/admin/paketler", label: "Paketler", permission: "packages" },
+      { href: "/admin/medya", label: "Medya", permission: "media" },
+    ],
+  },
+  {
+    id: "system",
+    label: "Sistem",
+    items: [
+      { href: "/admin/ekip", label: "Ekip", permission: "team" },
+      { href: "/admin/ayarlar", label: "Site ayarları", permission: "settings" },
+    ],
+  },
 ];
+
+/** Flat list (compat) */
+export const ADMIN_NAV: AdminNavItem[] = ADMIN_NAV_GROUPS.flatMap((g) => g.items);

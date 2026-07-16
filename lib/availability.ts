@@ -1,7 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { getHolidaysInRange, type HolidayInfo } from "@/lib/holidays-tr";
-import { fetchGoogleBusySlots } from "@/lib/google-calendar";
-
 export type BookingSettings = {
   workStartHour: number;
   workEndHour: number;
@@ -220,7 +218,7 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
     };
   }
 
-  const [confirmed, blocked, googleBusy] = await Promise.all([
+  const [confirmed, blocked] = await Promise.all([
     prisma.inquiry.findMany({
       where: {
         status: "CONFIRMED",
@@ -230,7 +228,6 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
       select: { eventTime: true, name: true },
     }),
     prisma.blockedSlot.findMany({ where: { date: dateStr } }),
-    fetchGoogleBusySlots(dateStr),
   ]);
 
   const dayBlocked = blocked.some((b) => !b.time);
@@ -240,7 +237,6 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
   const confirmedTimes = new Set(
     confirmed.map((c) => c.eventTime as string),
   );
-  const googleBusySet = new Set(googleBusy);
 
   if (dayBlocked) {
     return {
@@ -262,13 +258,6 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
     }
     if (confirmedTimes.has(time)) {
       return { time, available: false, reason: "Dolu" };
-    }
-    // Google busy: match exact or hour:00
-    if (
-      googleBusySet.has(time) ||
-      googleBusySet.has(`${time.slice(0, 2)}:00`)
-    ) {
-      return { time, available: false, reason: "Google Takvim dolu" };
     }
     return { time, available: true };
   });
@@ -319,17 +308,7 @@ export async function isSlotAvailable(
       ...(excludeInquiryId ? { NOT: { id: excludeInquiryId } } : {}),
     },
   });
-  if (confirmed) return false;
-
-  const googleBusy = await fetchGoogleBusySlots(dateStr);
-  if (
-    googleBusy.includes(timeStr) ||
-    googleBusy.includes(`${timeStr.slice(0, 2)}:00`)
-  ) {
-    return false;
-  }
-
-  return true;
+  return !confirmed;
 }
 
 /** Ay görünümü için gün özetleri (public booking picker) */

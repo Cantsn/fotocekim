@@ -17,8 +17,6 @@ export default async function AdminTakvimPage() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   const [rawInquiries, rawBlocked, recentBlocks, specialDays] =
     await Promise.all([
@@ -76,7 +74,7 @@ export default async function AdminTakvimPage() {
         initialMonth={month}
       />
 
-      <GoogleCalendarPanel siteUrl={siteUrl} />
+      <GoogleCalendarPanel />
 
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-6">

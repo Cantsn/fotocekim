@@ -17,7 +17,10 @@ import {
 } from "lucide-react";
 import { logoutAction } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
-import { ADMIN_NAV, type Permission } from "@/lib/permissions";
+import {
+  ADMIN_NAV_GROUPS,
+  type Permission,
+} from "@/lib/permissions";
 import { ThemeToggleButton } from "@/components/admin/AdminThemeProvider";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -46,9 +49,12 @@ export function AdminShell({
 }) {
   const pathname = usePathname();
 
-  const links = ADMIN_NAV.filter(
-    (l) => isOwner || permissions.includes(l.permission),
-  );
+  const groups = ADMIN_NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((l) => isOwner || permissions.includes(l.permission)),
+  })).filter((g) => g.items.length > 0);
+
+  const flat = groups.flatMap((g) => g.items);
 
   return (
     <div className="flex min-h-full flex-1">
@@ -57,28 +63,37 @@ export function AdminShell({
           <p className="font-serif text-lg text-foreground">FotoCekim</p>
           <p className="text-xs text-muted">Admin · {userName || "Panel"}</p>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {links.map((l) => {
-            const active = l.exact
-              ? pathname === l.href
-              : pathname.startsWith(l.href);
-            const Icon = ICONS[l.href] ?? LayoutDashboard;
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={cn(
-                  "inline-flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition",
-                  active
-                    ? "bg-accent-soft text-accent"
-                    : "text-muted hover:bg-card hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {l.label}
-              </Link>
-            );
-          })}
+        <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
+          {groups.map((g) => (
+            <div key={g.id}>
+              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
+                {g.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {g.items.map((l) => {
+                  const active = l.exact
+                    ? pathname === l.href
+                    : pathname.startsWith(l.href);
+                  const Icon = ICONS[l.href] ?? LayoutDashboard;
+                  return (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      className={cn(
+                        "inline-flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition",
+                        active
+                          ? "bg-accent-soft text-accent"
+                          : "text-muted hover:bg-card hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {l.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         <form action={logoutAction} className="border-t border-border p-3">
           <button
@@ -94,7 +109,7 @@ export function AdminShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-col gap-2 border-b border-border px-3 py-3 sm:px-4 md:flex-row md:items-center md:px-8">
           <div className="flex gap-2 overflow-x-auto pb-1 md:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {links.map((l) => {
+            {flat.map((l) => {
               const Icon = ICONS[l.href] ?? LayoutDashboard;
               const active = l.exact
                 ? pathname === l.href

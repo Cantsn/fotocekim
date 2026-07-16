@@ -4,31 +4,34 @@ import {
   getPublishedPackages,
   getSiteSettings,
 } from "@/lib/data";
+import { getDictionary } from "@/lib/i18n/server";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Paketler",
-  description: "Essential, Premium ve Ultimate çekim paketleri.",
+  title: "Paketler / Packages",
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function PaketlerPage() {
-  const [list, settings] = await Promise.all([
+  const [list, settings, t] = await Promise.all([
     getPublishedPackages(),
     getSiteSettings(),
+    getDictionary(),
   ]);
 
   return (
-    <div className="py-16 md:py-24">
+    <div className="py-12 sm:py-16 md:py-24">
       <Container>
         <SectionHeading
-          eyebrow="Paketler"
-          title="Size uygun kapsam"
-          description="Başlangıç fiyatlarıdır. Mesafe, süre, ekip ve drone kapsamına göre teklif netleşir."
+          eyebrow={t.packages.eyebrow}
+          title={t.packages.title}
+          description={
+            settings.showPrices ? t.packages.priceNote : t.packages.quoteOnly
+          }
           align="center"
         />
         <div className="grid gap-5 lg:grid-cols-3">
@@ -42,7 +45,7 @@ export default async function PaketlerPage() {
             >
               {pkg.highlight && (
                 <span className="mb-3 w-fit rounded-full bg-accent-soft px-3 py-1 text-xs text-accent">
-                  Önerilen
+                  {t.packages.recommended}
                 </span>
               )}
               <h2 className="font-serif text-3xl text-foreground">{pkg.name}</h2>
@@ -66,7 +69,7 @@ export default async function PaketlerPage() {
                 variant={pkg.highlight ? "primary" : "secondary"}
                 className="mt-10 w-full"
               >
-                Bu paket için yaz
+                {t.packages.request}
               </ButtonLink>
             </div>
           ))}

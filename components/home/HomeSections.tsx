@@ -16,6 +16,7 @@ import {
   getPublishedTestimonials,
   getSiteSettings,
 } from "@/lib/data";
+import { getDictionary } from "@/lib/i18n/server";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ButtonLink } from "@/components/ui/Button";
@@ -24,7 +25,7 @@ import { HomeInteractive } from "@/components/home/HomeInteractive";
 import { cn } from "@/lib/utils";
 
 export async function HeroSection() {
-  const settings = await getSiteSettings();
+  const [settings, t] = await Promise.all([getSiteSettings(), getDictionary()]);
   return (
     <section className="relative overflow-hidden">
       <MediaPlaceholder
@@ -34,23 +35,19 @@ export async function HeroSection() {
       />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
       <Container className="absolute inset-x-0 bottom-0 pb-12 pt-28 sm:pb-16 sm:pt-32">
-        <p className="mb-3 flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase sm:mb-4 sm:tracking-[0.25em]">
+        <p className="mb-3 flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase sm:mb-4">
           <Camera className="h-3.5 w-3.5" />
-          <span data-i18n="hero.kicker">Fotoğraf · Video · Drone</span>
+          {t.hero.kicker}
         </p>
         <h1 className="max-w-2xl font-serif text-3xl leading-[1.15] text-foreground sm:text-5xl md:text-6xl">
           {settings.tagline}
         </h1>
-        <p
-          className="mt-4 max-w-lg text-sm leading-relaxed text-muted sm:mt-5 sm:text-lg"
-          data-i18n="hero.sub"
-        >
-          Düğünden ürüne, gökyüzünden detaya — tek stüdyo. Anılarınızı filmik bir
-          dilde belgeleriz.
+        <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted sm:mt-5 sm:text-lg">
+          {t.hero.sub}
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap">
           <ButtonLink href="/portfolyo" size="lg" className="w-full sm:w-auto">
-            <span data-i18n="hero.portfolio">Portföyü incele</span>
+            {t.hero.portfolio}
           </ButtonLink>
           <ButtonLink
             href="/randevu"
@@ -58,7 +55,7 @@ export async function HeroSection() {
             size="lg"
             className="w-full sm:w-auto"
           >
-            <span data-i18n="hero.book">Randevu / teklif</span>
+            {t.hero.book}
           </ButtonLink>
         </div>
       </Container>
@@ -78,17 +75,21 @@ const serviceIcons = [
 ];
 
 export async function ServicesSection() {
-  const list = (await getPublishedServices()).slice(0, 8);
+  const [list, t] = await Promise.all([
+    getPublishedServices(),
+    getDictionary(),
+  ]);
+  const items = list.slice(0, 8);
   return (
     <section className="py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
-          eyebrow="Hizmetler"
-          title="Her çekim için net bir dil"
-          description="Düğün, dış çekim, ürün, dükkan ve drone — ihtiyacınıza göre ekip ve ekipman planlanır."
+          eyebrow={t.services.eyebrow}
+          title={t.services.title}
+          description={t.services.desc}
         />
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-          {list.map((s, i) => {
+          {items.map((s, i) => {
             const Icon = serviceIcons[i % serviceIcons.length];
             return (
               <Link
@@ -96,11 +97,7 @@ export async function ServicesSection() {
                 href={`/hizmetler/${s.slug}`}
                 className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/50"
               >
-                <MediaPlaceholder
-                  label={`${s.title}`}
-                  aspect="video"
-                  icon={false}
-                />
+                <MediaPlaceholder label={s.title} aspect="video" icon={false} />
                 <div className="p-4 sm:p-5">
                   <div className="mb-2 flex items-center gap-2 text-accent">
                     <Icon className="h-4 w-4 shrink-0" />
@@ -108,9 +105,7 @@ export async function ServicesSection() {
                       {s.title}
                     </h3>
                   </div>
-                  <p className="text-sm leading-relaxed text-muted">
-                    {s.shortDesc}
-                  </p>
+                  <p className="text-sm leading-relaxed text-muted">{s.shortDesc}</p>
                 </div>
               </Link>
             );
@@ -118,7 +113,7 @@ export async function ServicesSection() {
         </div>
         <div className="mt-8 sm:mt-10">
           <ButtonLink href="/hizmetler" variant="secondary">
-            Tüm hizmetler
+            {t.services.all}
           </ButtonLink>
         </div>
       </Container>
@@ -127,17 +122,20 @@ export async function ServicesSection() {
 }
 
 export async function FeaturedWorkSection() {
-  const list = (await getFeaturedProjects()).slice(0, 8);
+  const [list, t] = await Promise.all([
+    getFeaturedProjects(),
+    getDictionary(),
+  ]);
   return (
     <section className="border-y border-border bg-muted-bg py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
-          eyebrow="Seçili çalışmalar"
-          title="Portföyden kareler"
+          eyebrow={t.featured.eyebrow}
+          title={t.featured.title}
         />
         <HomeInteractive
           mode="portfolio"
-          items={list.map((p) => ({
+          items={list.slice(0, 8).map((p) => ({
             id: p.id,
             href: `/portfolyo/${p.slug}`,
             title: p.title,
@@ -147,37 +145,30 @@ export async function FeaturedWorkSection() {
           }))}
         />
         <div className="mt-8 sm:mt-10">
-          <ButtonLink href="/portfolyo">Tüm portföy</ButtonLink>
+          <ButtonLink href="/portfolyo">{t.featured.all}</ButtonLink>
         </div>
       </Container>
     </section>
   );
 }
 
-export function ProcessSection() {
-  const steps = [
-    { n: "01", title: "İletişim", desc: "Form veya WhatsApp ile ulaşın." },
-    { n: "02", title: "Keşif", desc: "Tarih, lokasyon ve konsepti netleştirelim." },
-    { n: "03", title: "Çekim", desc: "Foto, video ve isteğe bağlı drone." },
-    { n: "04", title: "Teslimat", desc: "Seçki, düzenleme ve online galeri." },
-  ];
+export async function ProcessSection() {
+  const t = await getDictionary();
   return (
     <section className="py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
-          eyebrow="Süreç"
-          title="Dört net adım"
-          description="İlk mesajdan teslimata kadar şeffaf ve sakin bir süreç."
+          eyebrow={t.process.eyebrow}
+          title={t.process.title}
+          description={t.process.desc}
         />
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
-          {steps.map((s) => (
+          {t.process.steps.map((s) => (
             <div
               key={s.n}
               className="rounded-2xl border border-border bg-card p-5 sm:p-6"
             >
-              <p className="font-serif text-2xl text-accent/80 sm:text-3xl">
-                {s.n}
-              </p>
+              <p className="font-serif text-2xl text-accent/80 sm:text-3xl">{s.n}</p>
               <h3 className="mt-2 font-serif text-lg text-foreground sm:mt-3 sm:text-xl">
                 {s.title}
               </h3>
@@ -191,20 +182,19 @@ export function ProcessSection() {
 }
 
 export async function PackagesPreviewSection() {
-  const [list, settings] = await Promise.all([
+  const [list, settings, t] = await Promise.all([
     getPublishedPackages(),
     getSiteSettings(),
+    getDictionary(),
   ]);
   return (
     <section className="border-y border-border bg-muted-bg py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
-          eyebrow="Paketler"
-          title="Başlangıç seçenekleri"
+          eyebrow={t.packages.eyebrow}
+          title={t.packages.title}
           description={
-            settings.showPrices
-              ? "Fiyatlar başlangıç tutarıdır; nihai teklif kapsam ve lokasyona göre değişir."
-              : "Detaylı teklif için iletişime geçin."
+            settings.showPrices ? t.packages.priceNote : t.packages.quoteOnly
           }
           align="center"
         />
@@ -221,7 +211,7 @@ export async function PackagesPreviewSection() {
             >
               {pkg.highlight && (
                 <span className="mb-3 w-fit rounded-full bg-accent-soft px-3 py-1 text-xs text-accent">
-                  En çok tercih
+                  {t.packages.recommended}
                 </span>
               )}
               <h3 className="font-serif text-xl text-foreground sm:text-2xl">
@@ -232,7 +222,7 @@ export async function PackagesPreviewSection() {
                   {formatPrice(pkg.priceFrom, pkg.currency)}
                 </p>
               )}
-              <ul className="mt-5 flex-1 space-y-2 sm:mt-6 sm:space-y-2.5">
+              <ul className="mt-5 flex-1 space-y-2 sm:mt-6">
                 {pkg.features.map((f) => (
                   <li key={f} className="flex gap-2 text-sm text-muted">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -245,7 +235,7 @@ export async function PackagesPreviewSection() {
                 variant={pkg.highlight ? "primary" : "secondary"}
                 className="mt-6 w-full sm:mt-8"
               >
-                Teklif iste
+                {t.packages.request}
               </ButtonLink>
             </div>
           ))}
@@ -256,23 +246,26 @@ export async function PackagesPreviewSection() {
 }
 
 export async function TestimonialsSection() {
-  const list = await getPublishedTestimonials();
+  const [list, t] = await Promise.all([
+    getPublishedTestimonials(),
+    getDictionary(),
+  ]);
   return (
     <section className="py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
-          eyebrow="Referanslar"
-          title="Müşterilerimizden"
+          eyebrow={t.testimonials.eyebrow}
+          title={t.testimonials.title}
           align="center"
         />
         <HomeInteractive
           mode="testimonials"
-          items={list.map((t) => ({
-            id: t.id,
-            title: t.name,
-            subtitle: t.role,
-            content: t.content,
-            rating: t.rating,
+          items={list.map((item) => ({
+            id: item.id,
+            title: item.name,
+            subtitle: item.role,
+            content: item.content,
+            rating: item.rating,
           }))}
         />
       </Container>
@@ -280,7 +273,8 @@ export async function TestimonialsSection() {
   );
 }
 
-export function DroneBand() {
+export async function DroneBand() {
+  const t = await getDictionary();
   return (
     <section className="border-y border-border">
       <div className="grid md:grid-cols-2">
@@ -289,21 +283,20 @@ export function DroneBand() {
           aspect="video"
           className="min-h-[220px] md:min-h-[280px]"
         />
-        <div className="flex flex-col justify-center bg-card px-5 py-10 sm:px-8 md:px-12 md:py-12">
+        <div className="flex flex-col justify-center bg-card px-5 py-10 sm:px-8 md:px-12">
           <p className="flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase">
             <Plane className="h-3.5 w-3.5" />
-            Drone & ekipman
+            {t.drone.kicker}
           </p>
           <h2 className="mt-3 font-serif text-2xl text-foreground sm:text-3xl">
-            Yerden ve havadan tam kapsama
+            {t.drone.title}
           </h2>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted sm:mt-4">
-            Profesyonel gövde, sinematik lensler ve mevzuata uygun drone
-            operasyonu.
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">
+            {t.drone.desc}
           </p>
           <div className="mt-5 sm:mt-6">
             <ButtonLink href="/hizmetler/drone" variant="secondary">
-              Drone hizmeti
+              {t.drone.cta}
             </ButtonLink>
           </div>
         </div>
@@ -312,11 +305,12 @@ export function DroneBand() {
   );
 }
 
-export function CtaBand() {
+export async function CtaBand() {
+  const t = await getDictionary();
   return (
     <section className="py-14 sm:py-20 md:py-24">
       <Container>
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-[#1c1917] via-[#2a241c] to-[#3d3224] px-5 py-12 text-center text-[#faf7f2] sm:px-10 sm:py-16 md:px-14">
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-[#1c1917] via-[#2a241c] to-[#3d3224] px-5 py-12 text-center text-[#faf7f2] sm:px-10 sm:py-16">
           <div
             className="pointer-events-none absolute inset-0 opacity-30"
             style={{
@@ -327,22 +321,21 @@ export function CtaBand() {
           <div className="relative z-10 mx-auto max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] tracking-wide text-[#e8dcc8] uppercase">
               <Sparkles className="h-3.5 w-3.5" />
-              Sıradaki çekiminiz
+              {t.cta.badge}
             </span>
             <h2 className="mt-5 font-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
-              Işık, an ve hikâye — sizinle
+              {t.cta.title}
             </h2>
             <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#d6cbb8] sm:text-base">
-              Düğün, marka veya özel bir an. Müsait tarihinizi seçin, gerisini
-              biz planlayalım.
+              {t.cta.desc}
             </p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <ButtonLink
                 href="/randevu"
                 size="lg"
                 className="w-full border-0 bg-[#c4a574] text-[#1c1917] hover:bg-[#d4b88a] sm:w-auto"
               >
-                Randevu al
+                {t.cta.primary}
               </ButtonLink>
               <ButtonLink
                 href="/iletisim"
@@ -350,7 +343,7 @@ export function CtaBand() {
                 size="lg"
                 className="w-full border-white/25 bg-transparent text-[#faf7f2] hover:border-[#c4a574] hover:text-[#c4a574] sm:w-auto"
               >
-                İletişim
+                {t.cta.secondary}
               </ButtonLink>
             </div>
           </div>

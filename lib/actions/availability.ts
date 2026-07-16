@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth";
 import {
@@ -130,6 +129,22 @@ export async function createManualAppointmentAction(formData: FormData) {
     if (!free) return;
   }
 
+  let googleEventId: string | null = null;
+  const finalStatus = ["NEW", "READ", "QUOTED", "CONFIRMED"].includes(status)
+    ? status
+    : "CONFIRMED";
+
+  if (finalStatus === "CONFIRMED") {
+    const { createGoogleCalendarEvent } = await import("@/lib/google-calendar");
+    googleEventId = await createGoogleCalendarEvent({
+      title: `Çekim: ${name}`,
+      date: eventDate,
+      time: eventTime,
+      description: message,
+      location: location || undefined,
+    });
+  }
+
   await prisma.inquiry.create({
     data: {
       name,
@@ -140,10 +155,9 @@ export async function createManualAppointmentAction(formData: FormData) {
       eventTime,
       location,
       message,
-      status: ["NEW", "READ", "QUOTED", "CONFIRMED"].includes(status)
-        ? status
-        : "CONFIRMED",
+      status: finalStatus,
       source: "manual",
+      googleEventId,
     },
   });
   revalidatePath("/admin/randevular");
@@ -154,55 +168,21 @@ export async function createManualAppointmentAction(formData: FormData) {
 export async function deleteInquiryAction(formData: FormData) {
   await requirePermission("inquiries");
   const id = String(formData.get("id") ?? "");
-  if (id) await prisma.inquiry.delete({ where: { id } });
+  if (!id) return;
+  const row = await prisma.inquiry.findUnique({ where: { id } });
+  if (row?.googleEventId) {
+    const { deleteGoogleCalendarEvent } = await import("@/lib/google-calendar");
+    await deleteGoogleCalendarEvent(row.googleEventId);
+  }
+  await prisma.inquiry.delete({ where: { id } });
   revalidatePath("/admin/randevular");
   revalidatePath("/admin/takvim");
   revalidatePath("/randevu");
 }
 
-export async function saveGoogleCalendarSettingsAction(formData: FormData) {
+export async function disconnectGoogleAction() {
   await requirePermission("inquiries");
-  const googleCalEnabled =
-    formData.get("googleCalEnabled") === "on" ||
-    formData.get("googleCalEnabled") === "true";
-  const googleCalId = String(formData.get("googleCalId") ?? "").trim();
-  const googleCalApiKeyInput = String(formData.get("googleCalApiKey") ?? "");
-  const googleCalEmbedUrl = String(formData.get("googleCalEmbedUrl") ?? "").trim();
-  const regenToken = formData.get("regenToken") === "1";
-
-  const existing = await prisma.siteSettings.findUnique({
-    where: { id: "default" },
-  });
-
-  let calendarFeedToken = existing?.calendarFeedToken || "";
-  if (!calendarFeedToken || regenToken) {
-    calendarFeedToken = randomBytes(24).toString("hex");
-  }
-
-  const googleCalApiKey =
-    googleCalApiKeyInput.trim() !== ""
-      ? googleCalApiKeyInput.trim()
-      : (existing?.googleCalApiKey ?? "");
-
-  await prisma.siteSettings.upsert({
-    where: { id: "default" },
-    create: {
-      id: "default",
-      siteName: existing?.siteName || "FotoCekim",
-      googleCalEnabled,
-      googleCalId,
-      googleCalApiKey,
-      googleCalEmbedUrl,
-      calendarFeedToken,
-    },
-    update: {
-      googleCalEnabled,
-      googleCalId,
-      googleCalApiKey,
-      googleCalEmbedUrl,
-      calendarFeedToken,
-    },
-  });
+  const { disconnectGoogleCalendar } = await import("@/lib/google-calendar");
+  await disconnectGoogleCalendar();
   revalidatePath("/admin/takvim");
-  revalidatePath("/randevu");
 }

@@ -430,19 +430,44 @@ export async function updateInquiryStatusAction(formData: FormData) {
   const status = String(formData.get("status") ?? "READ");
   if (!id) return;
 
+  const row = await prisma.inquiry.findUnique({ where: { id } });
+  if (!row) return;
+
   if (status === "CONFIRMED") {
-    const row = await prisma.inquiry.findUnique({ where: { id } });
-    if (row?.eventDate && row?.eventTime) {
+    if (row.eventDate && row.eventTime) {
       const { isSlotAvailable } = await import("@/lib/availability");
       const free = await isSlotAvailable(row.eventDate, row.eventTime, id);
-      if (!free) {
-        // conflict — don't confirm
-        return;
-      }
+      if (!free) return;
     }
   }
 
-  await prisma.inquiry.update({ where: { id }, data: { status } });
+  let googleEventId = row.googleEventId;
+
+  if (status === "CONFIRMED" && row.eventDate && row.eventTime && !googleEventId) {
+    const { createGoogleCalendarEvent } = await import("@/lib/google-calendar");
+    googleEventId = await createGoogleCalendarEvent({
+      title: `Çekim: ${row.name}`,
+      date: row.eventDate,
+      time: row.eventTime,
+      description: `${row.phone}\n${row.email || ""}\n${row.message}`,
+      location: row.location || undefined,
+    });
+  }
+
+  if (
+    (status === "CANCELLED" || status === "NEW") &&
+    row.googleEventId &&
+    row.status === "CONFIRMED"
+  ) {
+    const { deleteGoogleCalendarEvent } = await import("@/lib/google-calendar");
+    await deleteGoogleCalendarEvent(row.googleEventId);
+    googleEventId = null;
+  }
+
+  await prisma.inquiry.update({
+    where: { id },
+    data: { status, googleEventId },
+  });
   revalidatePath("/admin/randevular");
   revalidatePath("/admin/takvim");
   revalidatePath("/randevu");

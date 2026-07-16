@@ -7,46 +7,68 @@ import {
   useEffect,
   useMemo,
   useState,
+  useTransition,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   dictionaries,
   type Dictionary,
   type Locale,
 } from "@/lib/i18n/dictionary";
+import { LOCALE_COOKIE } from "@/lib/i18n/server-cookie";
 
 const LocaleCtx = createContext<{
   locale: Locale;
   t: Dictionary;
   setLocale: (l: Locale) => void;
-  toggle: () => void;
 } | null>(null);
 
-export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("tr");
+function writeCookie(locale: Locale) {
+  document.cookie = `${LOCALE_COOKIE}=${locale};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
+}
+
+export function LocaleProvider({
+  children,
+  initialLocale = "tr",
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    const stored = localStorage.getItem("fotocekim-locale") as Locale | null;
-    if (stored === "tr" || stored === "en") setLocaleState(stored);
-  }, []);
+    const stored = localStorage.getItem(LOCALE_COOKIE) as Locale | null;
+    if (stored === "tr" || stored === "en") {
+      setLocaleState(stored);
+      writeCookie(stored);
+      document.documentElement.lang = stored;
+    } else {
+      document.documentElement.lang = initialLocale;
+    }
+  }, [initialLocale]);
 
-  const setLocale = useCallback((l: Locale) => {
-    setLocaleState(l);
-    localStorage.setItem("fotocekim-locale", l);
-    document.documentElement.lang = l;
-  }, []);
-
-  const toggle = useCallback(() => {
-    setLocale(locale === "tr" ? "en" : "tr");
-  }, [locale, setLocale]);
+  const setLocale = useCallback(
+    (l: Locale) => {
+      setLocaleState(l);
+      localStorage.setItem(LOCALE_COOKIE, l);
+      writeCookie(l);
+      document.documentElement.lang = l;
+      startTransition(() => {
+        router.refresh();
+      });
+    },
+    [router],
+  );
 
   const value = useMemo(
     () => ({
       locale,
       t: dictionaries[locale] as Dictionary,
       setLocale,
-      toggle,
     }),
-    [locale, setLocale, toggle],
+    [locale, setLocale],
   );
 
   return <LocaleCtx.Provider value={value}>{children}</LocaleCtx.Provider>;
