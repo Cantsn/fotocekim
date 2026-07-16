@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
+/* Public site default: aydınlık (sıcak krem / editorial) */
 :root {
-  --background: #0b0b0c;
-  --foreground: #f4f0ea;
-  --muted: #a39e96;
-  --muted-bg: #161618;
-  --card: #141416;
-  --border: #2a2a2e;
-  --accent: #c4a574;
+  --background: #faf7f2;
+  --foreground: #1c1917;
+  --muted: #78716c;
+  --muted-bg: #f0ebe3;
+  --card: #ffffff;
+  --border: #e7e0d6;
+  --accent: #a67c3d;
   --accent-soft: #c4a57433;
-  --placeholder: #2c2c30;
-  --placeholder-line: #3a3a40;
-  --success: #6b9b7a;
-  --danger: #c45c5c;
+  --placeholder: #ebe4da;
+  --placeholder-line: #d9d0c3;
+  --success: #3d7a52;
+  --danger: #b33b3b;
 }
 
 @theme inline {
@@ -35,6 +36,7 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
 }
 
 body {
@@ -43,7 +45,7 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* Admin panel light theme override */
+/* Admin: açık tema (root ile uyumlu, hafif fark) */
 .admin-root[data-theme="light"] {
   --background: #f7f5f1;
   --foreground: #1a1917;
@@ -57,11 +59,26 @@ body {
   --placeholder-line: #d0c9bd;
   --success: #3d7a52;
   --danger: #b33b3b;
+  color-scheme: light;
   color: var(--foreground);
   background: var(--background);
 }
 
+/* Admin: koyu tema */
 .admin-root[data-theme="dark"] {
+  --background: #0b0b0c;
+  --foreground: #f4f0ea;
+  --muted: #a39e96;
+  --muted-bg: #161618;
+  --card: #141416;
+  --border: #2a2a2e;
+  --accent: #c4a574;
+  --accent-soft: #c4a57433;
+  --placeholder: #2c2c30;
+  --placeholder-line: #3a3a40;
+  --success: #6b9b7a;
+  --danger: #c45c5c;
+  color-scheme: dark;
   color: var(--foreground);
   background: var(--background);
 }
@@ -71,13 +88,11 @@ body {
   color: var(--foreground);
 }
 
-/* Focus ring */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

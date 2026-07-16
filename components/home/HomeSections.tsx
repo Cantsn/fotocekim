@@ -46,7 +46,7 @@ export async function HeroSection() {
         aspect="wide"
         className="min-h-[72vh] md:min-h-[78vh]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/20" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
       <Container className="absolute inset-x-0 bottom-0 pb-16 pt-32">
         <p className="mb-4 text-xs font-medium tracking-[0.25em] text-accent uppercase">
           Fotoğraf · Video · Drone
