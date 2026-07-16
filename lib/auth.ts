@@ -6,7 +6,7 @@ import {
   type Permission,
 } from "@/lib/permissions";
 
-const SESSION_COOKIE = "fotocekim_admin_session";
+export const SESSION_COOKIE = "fotocekim_admin_session";
 
 export type SessionUser = {
   id: string;
@@ -30,14 +30,29 @@ export async function isAdminAuthenticated(): Promise<boolean> {
   return !!user;
 }
 
+async function clearSessionCookie() {
+  try {
+    const store = await cookies();
+    store.delete(SESSION_COOKIE);
+  } catch {
+    // ignore — bazı RSC bağlamlarında set edilemeyebilir
+  }
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   const store = await cookies();
   const userId = store.get(SESSION_COOKIE)?.value;
-  if (!userId) return null;
+  if (!userId || userId === "authenticated") {
+    if (userId === "authenticated") await clearSessionCookie();
+    return null;
+  }
 
   try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.active) return null;
+    if (!user || !user.active) {
+      await clearSessionCookie();
+      return null;
+    }
     return {
       id: user.id,
       email: user.email,
@@ -53,10 +68,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function createAdminSession(userId: string) {
   const store = await cookies();
+  // Production + HTTPS (Coolify): Secure cookie
+  const secure =
+    process.env.NODE_ENV === "production" ||
+    process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://") === true;
+
   store.set(SESSION_COOKIE, userId, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });

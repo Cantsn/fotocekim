@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
 import { LoginForm } from "@/components/admin/LoginForm";
 
 export const metadata: Metadata = {
@@ -6,7 +8,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminLoginPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AdminLoginPage() {
+  // Sadece GEÇERLİ oturum varsa yönlendir (cookie var diye değil)
+  const user = await getSessionUser();
+  if (user) {
+    redirect("/admin");
+  }
+
   return (
     <div className="flex min-h-full flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
