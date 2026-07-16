@@ -428,10 +428,24 @@ export async function updateInquiryStatusAction(formData: FormData) {
   await requirePermission("inquiries");
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "READ");
-  if (id) {
-    await prisma.inquiry.update({ where: { id }, data: { status } });
+  if (!id) return;
+
+  if (status === "CONFIRMED") {
+    const row = await prisma.inquiry.findUnique({ where: { id } });
+    if (row?.eventDate && row?.eventTime) {
+      const { isSlotAvailable } = await import("@/lib/availability");
+      const free = await isSlotAvailable(row.eventDate, row.eventTime, id);
+      if (!free) {
+        // conflict — don't confirm
+        return;
+      }
+    }
   }
+
+  await prisma.inquiry.update({ where: { id }, data: { status } });
   revalidatePath("/admin/randevular");
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
 }
 
 /** Ensure owner exists — used by seed */

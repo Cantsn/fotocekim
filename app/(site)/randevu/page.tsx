@@ -15,7 +15,7 @@ export default function RandevuPage() {
         <SectionHeading
           eyebrow="Randevu"
           title="Ücretsiz ön görüşme"
-          description="Tarih, lokasyon ve konseptinizi yazın. Müsaitlik ve paket önerisiyle dönüş yapalım."
+          description="Müsait tarih ve saati seçin. Admin onayından sonra slot kilitlenir; dolu saatler seçilemez."
           align="center"
         />
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">

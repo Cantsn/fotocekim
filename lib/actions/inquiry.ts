@@ -2,6 +2,7 @@
 
 import { addInquiry } from "@/lib/data";
 import type { InquiryType } from "@/lib/types";
+import { isSlotAvailable } from "@/lib/availability";
 
 export type InquiryState = {
   ok?: boolean;
@@ -30,6 +31,7 @@ export async function submitInquiryAction(
   const email = String(formData.get("email") ?? "").trim() || undefined;
   const typeRaw = String(formData.get("type") ?? "OTHER");
   const eventDate = String(formData.get("eventDate") ?? "").trim() || undefined;
+  const eventTime = String(formData.get("eventTime") ?? "").trim() || undefined;
   const location = String(formData.get("location") ?? "").trim() || undefined;
   const message = String(formData.get("message") ?? "").trim();
   const budget = String(formData.get("budget") ?? "").trim() || undefined;
@@ -49,6 +51,32 @@ export async function submitInquiryAction(
     return { error: "Devam etmek için KVKK metnini onaylamalısınız." };
   }
 
+  // Randevu kaynağında tarih + saat zorunlu
+  const needsSlot = source === "randevu" || source.startsWith("service:");
+  if (needsSlot) {
+    if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+      return { error: "Lütfen çekim tarihi seçin." };
+    }
+    if (!eventTime || !/^\d{2}:\d{2}$/.test(eventTime)) {
+      return { error: "Lütfen müsait bir saat seçin." };
+    }
+    const free = await isSlotAvailable(eventDate, eventTime);
+    if (!free) {
+      return {
+        error:
+          "Seçtiğiniz tarih/saat artık müsait değil. Lütfen başka bir slot seçin.",
+      };
+    }
+  } else if (eventDate && eventTime) {
+    const free = await isSlotAvailable(eventDate, eventTime);
+    if (!free) {
+      return {
+        error:
+          "Seçtiğiniz tarih/saat dolu. Lütfen başka bir slot seçin.",
+      };
+    }
+  }
+
   const type = types.includes(typeRaw as InquiryType)
     ? (typeRaw as InquiryType)
     : "OTHER";
@@ -60,6 +88,7 @@ export async function submitInquiryAction(
       email,
       type,
       eventDate,
+      eventTime,
       location,
       message,
       budget,

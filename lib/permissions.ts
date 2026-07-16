@@ -57,6 +57,7 @@ export const ADMIN_NAV: {
   exact?: boolean;
 }[] = [
   { href: "/admin", label: "Dashboard", permission: "dashboard", exact: true },
+  { href: "/admin/takvim", label: "Takvim", permission: "inquiries" },
   { href: "/admin/randevular", label: "Randevular", permission: "inquiries" },
   { href: "/admin/portfolyo", label: "Portföy", permission: "portfolio" },
   { href: "/admin/hizmetler", label: "Hizmetler", permission: "services" },

@@ -109,6 +109,7 @@ export interface Inquiry {
   email?: string;
   type: InquiryType;
   eventDate?: string;
+  eventTime?: string;
   location?: string;
   message: string;
   budget?: string;
