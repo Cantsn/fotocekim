@@ -107,6 +107,59 @@ export async function deleteSpecialDayAction(formData: FormData) {
   revalidatePath("/randevu");
 }
 
+/** Admin: manuel randevu oluştur (bireysel / telefon) */
+export async function createManualAppointmentAction(formData: FormData) {
+  await requirePermission("inquiries");
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const type = String(formData.get("type") ?? "OTHER");
+  const eventDate = String(formData.get("eventDate") ?? "").trim();
+  let eventTime = String(formData.get("eventTime") ?? "").trim();
+  if (eventTime.length >= 5) eventTime = eventTime.slice(0, 5);
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const message =
+    String(formData.get("message") ?? "").trim() || "Manuel randevu";
+  const status = String(formData.get("status") ?? "CONFIRMED");
+  const { isSlotAvailable } = await import("@/lib/availability");
+
+  if (!name || !phone || !eventDate || !eventTime) return;
+
+  if (status === "CONFIRMED") {
+    const free = await isSlotAvailable(eventDate, eventTime);
+    if (!free) return;
+  }
+
+  await prisma.inquiry.create({
+    data: {
+      name,
+      phone,
+      email,
+      type,
+      eventDate,
+      eventTime,
+      location,
+      message,
+      status: ["NEW", "READ", "QUOTED", "CONFIRMED"].includes(status)
+        ? status
+        : "CONFIRMED",
+      source: "manual",
+    },
+  });
+  revalidatePath("/admin/randevular");
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
+}
+
+export async function deleteInquiryAction(formData: FormData) {
+  await requirePermission("inquiries");
+  const id = String(formData.get("id") ?? "");
+  if (id) await prisma.inquiry.delete({ where: { id } });
+  revalidatePath("/admin/randevular");
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
+}
+
 export async function saveGoogleCalendarSettingsAction(formData: FormData) {
   await requirePermission("inquiries");
   const googleCalEnabled =

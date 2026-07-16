@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatDateDot } from "@/lib/utils";
 
 export type CalInquiry = {
   id: string;
@@ -162,28 +162,30 @@ export function AppointmentCalendar({
                 type="button"
                 onClick={() => setSelected(dateStr)}
                 className={cn(
-                  "min-h-[4.5rem] rounded-xl border p-1.5 text-left transition",
+                  "min-h-[3.5rem] rounded-lg border p-1 text-left transition sm:min-h-[4.5rem] sm:rounded-xl sm:p-1.5",
                   isSel
                     ? "border-accent bg-accent-soft"
                     : "border-border bg-muted-bg/40 hover:border-accent/40",
                   blocks.some((b) => !b.time) && "bg-rose-500/5",
                 )}
               >
-                <span className="text-xs font-medium text-foreground">{day}</span>
-                <div className="mt-1 flex flex-wrap gap-0.5">
+                <span className="text-[10px] font-medium text-foreground sm:text-xs">
+                  {day}
+                </span>
+                <div className="mt-0.5 flex flex-wrap gap-0.5 sm:mt-1">
                   {confirmed > 0 && (
-                    <span className="rounded bg-emerald-500/20 px-1 text-[9px] text-emerald-800">
-                      {confirmed} onay
+                    <span className="rounded bg-emerald-500/20 px-1 text-[8px] text-emerald-800 sm:text-[9px]">
+                      {confirmed}
                     </span>
                   )}
                   {pending > 0 && (
-                    <span className="rounded bg-amber-500/20 px-1 text-[9px] text-amber-800">
-                      {pending} talep
+                    <span className="rounded bg-amber-500/20 px-1 text-[8px] text-amber-800 sm:text-[9px]">
+                      {pending}
                     </span>
                   )}
                   {blocks.length > 0 && (
-                    <span className="rounded bg-rose-500/15 px-1 text-[9px] text-rose-700">
-                      kapalı
+                    <span className="rounded bg-rose-500/15 px-1 text-[8px] text-rose-700 sm:text-[9px]">
+                      ×
                     </span>
                   )}
                 </div>
@@ -207,13 +209,7 @@ export function AppointmentCalendar({
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="font-serif text-lg text-foreground">
-          {selected
-            ? new Date(`${selected}T12:00:00`).toLocaleDateString("tr-TR", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })
-            : "Gün seçin"}
+          {selected ? formatDateDot(selected) : "Gün seçin"}
         </h3>
 
         {!selected && (
@@ -237,6 +233,7 @@ export function AppointmentCalendar({
                   {i.eventTime ? `${i.eventTime} · ` : ""}
                   {i.name}
                 </p>
+                {/* slot already shows time; date on parent */}
                 <span
                   className={cn(
                     "rounded-full border px-2 py-0.5 text-[10px]",

@@ -1,5 +1,13 @@
 import Link from "next/link";
 import {
+  Camera,
+  Clapperboard,
+  Package,
+  Plane,
+  Sparkles,
+  Star,
+} from "lucide-react";
+import {
   categoryLabel,
   formatPrice,
   getFeaturedProjects,
@@ -12,58 +20,45 @@ import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ButtonLink } from "@/components/ui/Button";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { HomeInteractive } from "@/components/home/HomeInteractive";
 import { cn } from "@/lib/utils";
-
-const steps = [
-  {
-    n: "01",
-    title: "İletişim",
-    desc: "Form veya WhatsApp ile ulaşın; ihtiyacınızı dinleyelim.",
-  },
-  {
-    n: "02",
-    title: "Keşif",
-    desc: "Tarih, lokasyon ve konsepti netleştirelim.",
-  },
-  {
-    n: "03",
-    title: "Çekim",
-    desc: "Foto, video ve isteğe bağlı drone ile çekim günü.",
-  },
-  {
-    n: "04",
-    title: "Teslimat",
-    desc: "Seçki, renk düzenleme ve online galeri teslimi.",
-  },
-];
 
 export async function HeroSection() {
   const settings = await getSiteSettings();
   return (
     <section className="relative overflow-hidden">
       <MediaPlaceholder
-        label="Hero görsel / video eklenecek"
+        label="Hero"
         aspect="wide"
-        className="min-h-[72vh] md:min-h-[78vh]"
+        className="min-h-[70vh] sm:min-h-[72vh] md:min-h-[78vh]"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
-      <Container className="absolute inset-x-0 bottom-0 pb-16 pt-32">
-        <p className="mb-4 text-xs font-medium tracking-[0.25em] text-accent uppercase">
-          Fotoğraf · Video · Drone
+      <Container className="absolute inset-x-0 bottom-0 pb-12 pt-28 sm:pb-16 sm:pt-32">
+        <p className="mb-3 flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase sm:mb-4 sm:tracking-[0.25em]">
+          <Camera className="h-3.5 w-3.5" />
+          <span data-i18n="hero.kicker">Fotoğraf · Video · Drone</span>
         </p>
-        <h1 className="max-w-2xl font-serif text-4xl leading-[1.15] text-foreground sm:text-5xl md:text-6xl">
+        <h1 className="max-w-2xl font-serif text-3xl leading-[1.15] text-foreground sm:text-5xl md:text-6xl">
           {settings.tagline}
         </h1>
-        <p className="mt-5 max-w-lg text-base leading-relaxed text-muted sm:text-lg">
-          Düğünden ürüne, gökyüzünden detaya — tek stüdyo. Anılarınızı filmik bir dilde
-          belgeleriz.
+        <p
+          className="mt-4 max-w-lg text-sm leading-relaxed text-muted sm:mt-5 sm:text-lg"
+          data-i18n="hero.sub"
+        >
+          Düğünden ürüne, gökyüzünden detaya — tek stüdyo. Anılarınızı filmik bir
+          dilde belgeleriz.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <ButtonLink href="/portfolyo" size="lg">
-            Portföyü incele
+        <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap">
+          <ButtonLink href="/portfolyo" size="lg" className="w-full sm:w-auto">
+            <span data-i18n="hero.portfolio">Portföyü incele</span>
           </ButtonLink>
-          <ButtonLink href="/randevu" variant="secondary" size="lg">
-            Randevu / teklif
+          <ButtonLink
+            href="/randevu"
+            variant="secondary"
+            size="lg"
+            className="w-full sm:w-auto"
+          >
+            <span data-i18n="hero.book">Randevu / teklif</span>
           </ButtonLink>
         </div>
       </Container>
@@ -71,34 +66,57 @@ export async function HeroSection() {
   );
 }
 
+const serviceIcons = [
+  Camera,
+  Sparkles,
+  Clapperboard,
+  Package,
+  Package,
+  Plane,
+  Star,
+  Camera,
+];
+
 export async function ServicesSection() {
   const list = (await getPublishedServices()).slice(0, 8);
   return (
-    <section className="py-20 md:py-28">
+    <section className="py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
           eyebrow="Hizmetler"
           title="Her çekim için net bir dil"
           description="Düğün, dış çekim, ürün, dükkan ve drone — ihtiyacınıza göre ekip ve ekipman planlanır."
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {list.map((s) => (
-            <Link
-              key={s.id}
-              href={`/hizmetler/${s.slug}`}
-              className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/50"
-            >
-              <MediaPlaceholder label={`${s.title} kapak`} aspect="video" icon={false} />
-              <div className="p-5">
-                <h3 className="font-serif text-xl text-foreground group-hover:text-accent">
-                  {s.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{s.shortDesc}</p>
-              </div>
-            </Link>
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+          {list.map((s, i) => {
+            const Icon = serviceIcons[i % serviceIcons.length];
+            return (
+              <Link
+                key={s.id}
+                href={`/hizmetler/${s.slug}`}
+                className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/50"
+              >
+                <MediaPlaceholder
+                  label={`${s.title}`}
+                  aspect="video"
+                  icon={false}
+                />
+                <div className="p-4 sm:p-5">
+                  <div className="mb-2 flex items-center gap-2 text-accent">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <h3 className="font-serif text-lg text-foreground group-hover:text-accent sm:text-xl">
+                      {s.title}
+                    </h3>
+                  </div>
+                  <p className="text-sm leading-relaxed text-muted">
+                    {s.shortDesc}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
-        <div className="mt-10">
+        <div className="mt-8 sm:mt-10">
           <ButtonLink href="/hizmetler" variant="secondary">
             Tüm hizmetler
           </ButtonLink>
@@ -109,60 +127,26 @@ export async function ServicesSection() {
 }
 
 export async function FeaturedWorkSection() {
-  const list = (await getFeaturedProjects()).slice(0, 6);
+  const list = (await getFeaturedProjects()).slice(0, 8);
   return (
-    <section className="border-y border-border bg-muted-bg py-20 md:py-28">
+    <section className="border-y border-border bg-muted-bg py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
           eyebrow="Seçili çalışmalar"
           title="Portföyden kareler"
-          description="Gerçek fotoğraflar yüklendiğinde burada görünecek. Şimdilik gri yer tutucular kullanılıyor."
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {list.map((p, i) => (
-            <Link
-              key={p.id}
-              href={`/portfolyo/${p.slug}`}
-              className={cn(
-                "group overflow-hidden rounded-2xl border border-border bg-card",
-                i === 0 && "sm:col-span-2 lg:col-span-2",
-              )}
-            >
-              {p.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.coverUrl}
-                  alt={p.title}
-                  className={
-                    i === 0
-                      ? "aspect-[21/9] min-h-[240px] w-full object-cover"
-                      : "aspect-video w-full object-cover"
-                  }
-                />
-              ) : (
-                <MediaPlaceholder
-                  label={p.title}
-                  aspect={i === 0 ? "wide" : "video"}
-                  className={i === 0 ? "min-h-[240px]" : undefined}
-                />
-              )}
-              <div className="flex items-end justify-between gap-3 p-5">
-                <div>
-                  <p className="text-xs tracking-wide text-accent uppercase">
-                    {categoryLabel(p.category)}
-                  </p>
-                  <h3 className="mt-1 font-serif text-xl text-foreground group-hover:text-accent">
-                    {p.title}
-                  </h3>
-                </div>
-                {p.location && (
-                  <span className="text-xs text-muted whitespace-nowrap">{p.location}</span>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-10">
+        <HomeInteractive
+          mode="portfolio"
+          items={list.map((p) => ({
+            id: p.id,
+            href: `/portfolyo/${p.slug}`,
+            title: p.title,
+            subtitle: categoryLabel(p.category),
+            meta: p.location,
+            coverUrl: p.coverUrl,
+          }))}
+        />
+        <div className="mt-8 sm:mt-10">
           <ButtonLink href="/portfolyo">Tüm portföy</ButtonLink>
         </div>
       </Container>
@@ -171,19 +155,32 @@ export async function FeaturedWorkSection() {
 }
 
 export function ProcessSection() {
+  const steps = [
+    { n: "01", title: "İletişim", desc: "Form veya WhatsApp ile ulaşın." },
+    { n: "02", title: "Keşif", desc: "Tarih, lokasyon ve konsepti netleştirelim." },
+    { n: "03", title: "Çekim", desc: "Foto, video ve isteğe bağlı drone." },
+    { n: "04", title: "Teslimat", desc: "Seçki, düzenleme ve online galeri." },
+  ];
   return (
-    <section className="py-20 md:py-28">
+    <section className="py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
           eyebrow="Süreç"
           title="Dört net adım"
           description="İlk mesajdan teslimata kadar şeffaf ve sakin bir süreç."
         />
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {steps.map((s) => (
-            <div key={s.n} className="rounded-2xl border border-border bg-card p-6">
-              <p className="font-serif text-3xl text-accent/80">{s.n}</p>
-              <h3 className="mt-3 font-serif text-xl text-foreground">{s.title}</h3>
+            <div
+              key={s.n}
+              className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+            >
+              <p className="font-serif text-2xl text-accent/80 sm:text-3xl">
+                {s.n}
+              </p>
+              <h3 className="mt-2 font-serif text-lg text-foreground sm:mt-3 sm:text-xl">
+                {s.title}
+              </h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">{s.desc}</p>
             </div>
           ))}
@@ -199,7 +196,7 @@ export async function PackagesPreviewSection() {
     getSiteSettings(),
   ]);
   return (
-    <section className="border-y border-border bg-muted-bg py-20 md:py-28">
+    <section className="border-y border-border bg-muted-bg py-14 sm:py-20 md:py-28">
       <Container>
         <SectionHeading
           eyebrow="Paketler"
@@ -211,12 +208,12 @@ export async function PackagesPreviewSection() {
           }
           align="center"
         />
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
           {list.map((pkg) => (
             <div
               key={pkg.id}
               className={cn(
-                "flex flex-col rounded-2xl border bg-card p-7",
+                "flex flex-col rounded-2xl border bg-card p-5 sm:p-7",
                 pkg.highlight
                   ? "border-accent shadow-[0_0_0_1px_var(--accent)]"
                   : "border-border",
@@ -227,13 +224,15 @@ export async function PackagesPreviewSection() {
                   En çok tercih
                 </span>
               )}
-              <h3 className="font-serif text-2xl text-foreground">{pkg.name}</h3>
+              <h3 className="font-serif text-xl text-foreground sm:text-2xl">
+                {pkg.name}
+              </h3>
               {settings.showPrices && (
-                <p className="mt-3 text-lg text-accent">
+                <p className="mt-2 text-lg text-accent sm:mt-3">
                   {formatPrice(pkg.priceFrom, pkg.currency)}
                 </p>
               )}
-              <ul className="mt-6 flex-1 space-y-2.5">
+              <ul className="mt-5 flex-1 space-y-2 sm:mt-6 sm:space-y-2.5">
                 {pkg.features.map((f) => (
                   <li key={f} className="flex gap-2 text-sm text-muted">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -244,16 +243,13 @@ export async function PackagesPreviewSection() {
               <ButtonLink
                 href="/randevu"
                 variant={pkg.highlight ? "primary" : "secondary"}
-                className="mt-8 w-full"
+                className="mt-6 w-full sm:mt-8"
               >
                 Teklif iste
               </ButtonLink>
             </div>
           ))}
         </div>
-        <p className="mt-8 text-center text-xs text-muted">
-          * Drone uçuşları mevzuat ve hava koşullarına bağlıdır.
-        </p>
       </Container>
     </section>
   );
@@ -262,25 +258,23 @@ export async function PackagesPreviewSection() {
 export async function TestimonialsSection() {
   const list = await getPublishedTestimonials();
   return (
-    <section className="py-20 md:py-28">
+    <section className="py-14 sm:py-20 md:py-28">
       <Container>
-        <SectionHeading eyebrow="Referanslar" title="Müşterilerimizden" align="center" />
-        <div className="grid gap-5 md:grid-cols-3">
-          {list.map((t) => (
-            <blockquote key={t.id} className="rounded-2xl border border-border bg-card p-6">
-              <div className="mb-3 flex gap-0.5 text-accent" aria-label={`${t.rating} yıldız`}>
-                {Array.from({ length: t.rating }).map((_, i) => (
-                  <span key={i}>★</span>
-                ))}
-              </div>
-              <p className="text-sm leading-relaxed text-muted">&ldquo;{t.content}&rdquo;</p>
-              <footer className="mt-5">
-                <p className="text-sm font-medium text-foreground">{t.name}</p>
-                {t.role && <p className="text-xs text-muted">{t.role}</p>}
-              </footer>
-            </blockquote>
-          ))}
-        </div>
+        <SectionHeading
+          eyebrow="Referanslar"
+          title="Müşterilerimizden"
+          align="center"
+        />
+        <HomeInteractive
+          mode="testimonials"
+          items={list.map((t) => ({
+            id: t.id,
+            title: t.name,
+            subtitle: t.role,
+            content: t.content,
+            rating: t.rating,
+          }))}
+        />
       </Container>
     </section>
   );
@@ -290,19 +284,24 @@ export function DroneBand() {
   return (
     <section className="border-y border-border">
       <div className="grid md:grid-cols-2">
-        <MediaPlaceholder label="Drone görseli eklenecek" aspect="video" className="min-h-[280px]" />
-        <div className="flex flex-col justify-center bg-card px-8 py-12 md:px-12">
-          <p className="text-xs font-medium tracking-[0.2em] text-accent uppercase">
+        <MediaPlaceholder
+          label="Drone"
+          aspect="video"
+          className="min-h-[220px] md:min-h-[280px]"
+        />
+        <div className="flex flex-col justify-center bg-card px-5 py-10 sm:px-8 md:px-12 md:py-12">
+          <p className="flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase">
+            <Plane className="h-3.5 w-3.5" />
             Drone & ekipman
           </p>
-          <h2 className="mt-3 font-serif text-3xl text-foreground">
+          <h2 className="mt-3 font-serif text-2xl text-foreground sm:text-3xl">
             Yerden ve havadan tam kapsama
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-muted">
-            Profesyonel gövde, sinematik lensler ve mevzuata uygun drone operasyonu ile
-            düğün, mülk ve etkinliklerinize derinlik katın.
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted sm:mt-4">
+            Profesyonel gövde, sinematik lensler ve mevzuata uygun drone
+            operasyonu.
           </p>
-          <div className="mt-6">
+          <div className="mt-5 sm:mt-6">
             <ButtonLink href="/hizmetler/drone" variant="secondary">
               Drone hizmeti
             </ButtonLink>
@@ -315,27 +314,42 @@ export function DroneBand() {
 
 export function CtaBand() {
   return (
-    <section className="py-20 md:py-24">
+    <section className="py-14 sm:py-20 md:py-24">
       <Container>
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-8 py-14 text-center sm:px-12">
-          <MediaPlaceholder
-            label="CTA arka plan"
-            aspect="auto"
-            className="absolute inset-0 opacity-30"
-            icon={false}
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-[#1c1917] via-[#2a241c] to-[#3d3224] px-5 py-12 text-center text-[#faf7f2] sm:px-10 sm:py-16 md:px-14">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-30"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 20% 20%, #c4a57455, transparent 45%), radial-gradient(circle at 80% 70%, #c4a57433, transparent 40%)",
+            }}
           />
-          <div className="relative z-10">
-            <h2 className="font-serif text-3xl text-foreground sm:text-4xl">
-              Düğününüzü — veya markanızı — ölümsüzleştirelim
+          <div className="relative z-10 mx-auto max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] tracking-wide text-[#e8dcc8] uppercase">
+              <Sparkles className="h-3.5 w-3.5" />
+              Sıradaki çekiminiz
+            </span>
+            <h2 className="mt-5 font-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
+              Işık, an ve hikâye — sizinle
             </h2>
-            <p className="mx-auto mt-4 max-w-lg text-sm text-muted">
-              Ücretsiz ön görüşme için yazın. Müsaitlik ve paket detaylarını birlikte netleştirelim.
+            <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#d6cbb8] sm:text-base">
+              Düğün, marka veya özel bir an. Müsait tarihinizi seçin, gerisini
+              biz planlayalım.
             </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <ButtonLink href="/randevu" size="lg">
-                Ücretsiz ön görüşme
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
+              <ButtonLink
+                href="/randevu"
+                size="lg"
+                className="w-full border-0 bg-[#c4a574] text-[#1c1917] hover:bg-[#d4b88a] sm:w-auto"
+              >
+                Randevu al
               </ButtonLink>
-              <ButtonLink href="/iletisim" variant="secondary" size="lg">
+              <ButtonLink
+                href="/iletisim"
+                variant="secondary"
+                size="lg"
+                className="w-full border-white/25 bg-transparent text-[#faf7f2] hover:border-[#c4a574] hover:text-[#c4a574] sm:w-auto"
+              >
                 İletişim
               </ButtonLink>
             </div>

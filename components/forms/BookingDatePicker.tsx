@@ -6,7 +6,7 @@ import {
   fetchDaySlotsAction,
   fetchMonthSummariesAction,
 } from "@/lib/actions/availability";
-import { cn } from "@/lib/utils";
+import { cn, formatDateDot } from "@/lib/utils";
 
 type DayMeta = {
   labels: { title: string; type: string }[];
@@ -119,59 +119,45 @@ export function BookingDatePicker({
   });
 
   return (
-    <div className="space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium tracking-[0.15em] text-accent uppercase">
-            Çekim tarihi & saat
-          </p>
-          <p className="mt-1 text-sm text-muted">
-            Takvimden müsait bir gün seçin; tatil ve özel günler işaretlidir.
-          </p>
-        </div>
+    <div className="space-y-4 rounded-2xl border border-border bg-card p-3 sm:p-5">
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted sm:gap-4">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" /> Müsait
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-rose-400" /> Dolu / kapalı
+        </span>
         {requireSlot && (
-          <span className="rounded-full bg-accent-soft px-3 py-1 text-[11px] text-accent">
-            Zorunlu
+          <span className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-accent">
+            *
           </span>
         )}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-[11px] text-muted">
-        <LegendDot className="bg-emerald-500" label="Müsait" />
-        <LegendDot className="bg-rose-500" label="Dolu / kapalı" />
-        <LegendDot className="bg-amber-500" label="Tatil" />
-        <LegendDot className="bg-violet-500" label="Özel gün" />
-        <LegendDot className="bg-stone-300" label="Çalışılmıyor" />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
-        {/* Month calendar */}
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => shift(-1)}
-              className="rounded-full border border-border px-3 py-1 text-sm hover:border-accent"
+              className="h-9 min-w-9 rounded-full border border-border px-3 text-sm"
             >
               ←
             </button>
-            <p className="font-serif text-lg capitalize text-foreground">
+            <p className="truncate text-center font-serif text-base capitalize text-foreground sm:text-lg">
               {monthLabel}
-              {loadingMonth && (
-                <span className="ml-2 text-xs text-muted">…</span>
-              )}
+              {loadingMonth ? " …" : ""}
             </p>
             <button
               type="button"
               onClick={() => shift(1)}
-              className="rounded-full border border-border px-3 py-1 text-sm hover:border-accent"
+              className="h-9 min-w-9 rounded-full border border-border px-3 text-sm"
             >
               →
             </button>
           </div>
 
-          <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted uppercase">
+          <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-muted sm:gap-1">
             {WEEK.map((w) => (
               <div key={w} className="py-1">
                 {w}
@@ -179,20 +165,16 @@ export function BookingDatePicker({
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
             {cells.map((day, idx) => {
-              if (day == null) return <div key={`e-${idx}`} className="aspect-square" />;
+              if (day == null)
+                return <div key={`e-${idx}`} className="aspect-square" />;
               const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const sum = summaries[dateStr];
               const outOfRange = dateStr < minDate || dateStr > maxDate;
               const selected = eventDate === dateStr;
-              const holiday = sum?.meta.isHoliday;
-              const special = sum?.meta.isSpecial && !holiday;
-              const blocked =
-                outOfRange ||
-                sum?.fullyBlocked ||
-                sum?.meta.bookingBlockedBySpecial;
-              const selectable = !outOfRange && sum && !sum.fullyBlocked && sum.isWorkDay;
+              const selectable =
+                !outOfRange && sum && !sum.fullyBlocked && sum.isWorkDay;
 
               return (
                 <button
@@ -200,102 +182,39 @@ export function BookingDatePicker({
                   type="button"
                   disabled={!selectable}
                   onClick={() => onDateChange(dateStr)}
-                  title={
-                    sum?.meta.labels.map((l) => l.title).join(", ") ||
-                    (selectable
-                      ? `${sum?.availableCount ?? 0} müsait slot`
-                      : "Seçilemez")
-                  }
                   className={cn(
-                    "relative flex aspect-square flex-col items-center justify-center rounded-xl border text-sm transition",
-                    selected && "border-accent bg-accent text-white shadow-md",
+                    "flex aspect-square items-center justify-center rounded-lg border text-xs font-medium transition sm:rounded-xl sm:text-sm",
+                    selected && "border-accent bg-accent text-white shadow",
                     !selected &&
                       selectable &&
-                      "border-emerald-500/30 bg-emerald-500/10 text-foreground hover:border-emerald-600",
+                      "border-emerald-500/35 bg-emerald-500/10 text-foreground active:scale-95",
                     !selected &&
-                      blocked &&
-                      !holiday &&
-                      !special &&
-                      "cursor-not-allowed border-border bg-muted-bg text-muted opacity-70",
-                    !selected &&
-                      holiday &&
-                      "cursor-not-allowed border-amber-500/40 bg-amber-500/15 text-amber-900",
-                    !selected &&
-                      special &&
-                      !blocked &&
-                      "border-violet-400/40 bg-violet-500/10 text-foreground",
-                    !selected &&
-                      special &&
-                      blocked &&
-                      "cursor-not-allowed border-violet-400/40 bg-violet-500/10 text-muted",
+                      !selectable &&
+                      "cursor-not-allowed border-border bg-muted-bg text-muted opacity-55",
                   )}
                 >
-                  <span className="font-medium">{day}</span>
-                  {(holiday || special) && (
-                    <span
-                      className={cn(
-                        "mt-0.5 h-1 w-1 rounded-full",
-                        holiday ? "bg-amber-500" : "bg-violet-500",
-                        selected && "bg-white",
-                      )}
-                    />
-                  )}
+                  {day}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Day detail + slots */}
-        <div className="flex flex-col rounded-xl border border-border bg-muted-bg/50 p-4">
-          {!eventDate && (
-            <p className="text-sm text-muted">
-              Soldan bir gün seçtiğinizde müsait saatler burada listelenir.
-            </p>
-          )}
-
+        <div className="min-h-[180px] rounded-xl border border-border bg-muted-bg/40 p-3 sm:p-4">
           {eventDate && (
             <>
-              <p className="font-serif text-lg text-foreground">
-                {new Date(`${eventDate}T12:00:00`).toLocaleDateString("tr-TR", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
+              <p className="font-serif text-base text-foreground sm:text-lg">
+                {formatDateDot(eventDate)}
               </p>
-
-              {dayMeta && dayMeta.labels.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {dayMeta.labels.map((l) => (
-                    <span
-                      key={l.title}
-                      className={cn(
-                        "mr-1 inline-block rounded-full border px-2 py-0.5 text-[11px]",
-                        l.type === "HOLIDAY" || l.type === "CLOSED"
-                          ? "border-amber-500/40 bg-amber-500/10 text-amber-900"
-                          : "border-violet-400/40 bg-violet-500/10 text-violet-900",
-                      )}
-                    >
-                      {l.type === "HOLIDAY"
-                        ? "🏖 "
-                        : l.type === "CLOSED"
-                          ? "🔒 "
-                          : "✨ "}
-                      {l.title}
-                    </span>
-                  ))}
-                </div>
+              {dayMeta && dayMeta.labels[0] && (
+                <p className="mt-1 text-[11px] text-muted">
+                  {dayMeta.labels[0].title}
+                </p>
               )}
-
-              <p className="mt-3 text-xs text-muted">
-                {loadingSlots
-                  ? "Saatler yükleniyor…"
-                  : slots.some((s) => s.available)
-                    ? "Müsait bir saat dilimi seçin"
-                    : "Bu günde müsait saat yok"}
-              </p>
-
-              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+                {loadingSlots && (
+                  <p className="col-span-full text-xs text-muted">…</p>
+                )}
                 {slots.map((s) => {
                   const sel = eventTime === s.time;
                   return (
@@ -304,15 +223,12 @@ export function BookingDatePicker({
                       type="button"
                       disabled={!s.available}
                       onClick={() => onTimeChange(s.time)}
-                      title={s.available ? "Müsait" : s.reason}
                       className={cn(
-                        "rounded-xl border px-2 py-2.5 text-sm font-medium transition",
+                        "rounded-lg border px-1 py-2 text-xs font-medium sm:rounded-xl sm:px-2 sm:text-sm",
                         s.available &&
                           !sel &&
-                          "border-emerald-500/40 bg-card text-foreground hover:border-accent",
-                        s.available &&
-                          sel &&
-                          "border-accent bg-accent text-white shadow",
+                          "border-emerald-500/40 bg-card text-foreground",
+                        s.available && sel && "border-accent bg-accent text-white",
                         !s.available &&
                           "cursor-not-allowed border-border bg-muted-bg text-muted line-through opacity-50",
                       )}
@@ -322,13 +238,9 @@ export function BookingDatePicker({
                   );
                 })}
               </div>
-
               {eventTime && (
-                <p className="mt-4 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-foreground">
-                  Seçiminiz:{" "}
-                  <strong>
-                    {eventDate} · {eventTime}
-                  </strong>
+                <p className="mt-3 text-sm font-medium text-foreground">
+                  {formatDateDot(eventDate)} · {eventTime}
                 </p>
               )}
             </>
@@ -336,14 +248,5 @@ export function BookingDatePicker({
         </div>
       </div>
     </div>
-  );
-}
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", className)} />
-      {label}
-    </span>
   );
 }

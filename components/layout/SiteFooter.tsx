@@ -21,8 +21,8 @@ const legal = [
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-border bg-muted-bg">
-      <Container className="py-14">
-        <div className="grid gap-10 md:grid-cols-3">
+      <Container className="py-10 sm:py-14">
+        <div className="grid gap-8 sm:gap-10 md:grid-cols-3">
           <div>
             <p className="font-serif text-2xl text-foreground">{siteSettings.siteName}</p>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted">
