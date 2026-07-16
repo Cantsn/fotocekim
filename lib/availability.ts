@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { getHolidaysInRange, type HolidayInfo } from "@/lib/holidays-tr";
+import { fetchGoogleBusySlots } from "@/lib/google-calendar";
 
 export type BookingSettings = {
   workStartHour: number;
@@ -8,10 +10,18 @@ export type BookingSettings = {
   bookingHorizonDays: number;
 };
 
+export type DayMeta = {
+  labels: { title: string; type: string }[];
+  isHoliday: boolean;
+  isSpecial: boolean;
+  bookingBlockedBySpecial: boolean;
+};
+
 export type DayAvailability = {
   date: string;
   isWorkDay: boolean;
   fullyBlocked: boolean;
+  meta: DayMeta;
   slots: { time: string; available: boolean; reason?: string }[];
 };
 
@@ -80,32 +90,66 @@ export function isPastDate(dateStr: string): boolean {
   return cmp < today;
 }
 
-/** Onaylı randevular slotu kapatır */
-export async function getConfirmedBookings(fromDate?: string, toDate?: string) {
-  return prisma.inquiry.findMany({
-    where: {
-      status: "CONFIRMED",
-      eventDate: {
-        not: null,
-        ...(fromDate || toDate
-          ? {
-              ...(fromDate ? { gte: fromDate } : {}),
-              ...(toDate ? { lte: toDate } : {}),
-            }
-          : {}),
-      },
-      eventTime: { not: null },
-    },
-    select: {
-      id: true,
-      name: true,
-      eventDate: true,
-      eventTime: true,
-      type: true,
-      status: true,
-      phone: true,
-    },
+export async function getSpecialDaysMap(
+  from?: string,
+  to?: string,
+): Promise<Map<string, DayMeta>> {
+  const year = new Date().getFullYear();
+  const holidays = getHolidaysInRange(year, year + 1);
+  const custom = await prisma.specialDay.findMany({
+    where:
+      from || to
+        ? {
+            date: {
+              ...(from ? { gte: from } : {}),
+              ...(to ? { lte: to } : {}),
+            },
+          }
+        : undefined,
   });
+
+  const map = new Map<string, DayMeta>();
+
+  const add = (
+    date: string,
+    title: string,
+    type: string,
+    block: boolean,
+  ) => {
+    const cur = map.get(date) ?? {
+      labels: [],
+      isHoliday: false,
+      isSpecial: false,
+      bookingBlockedBySpecial: false,
+    };
+    cur.labels.push({ title, type });
+    if (type === "HOLIDAY" || type === "CLOSED") cur.isHoliday = true;
+    if (type === "SPECIAL") cur.isSpecial = true;
+    if (block) cur.bookingBlockedBySpecial = true;
+    map.set(date, cur);
+  };
+
+  for (const h of holidays) {
+    if (from && h.date < from) continue;
+    if (to && h.date > to) continue;
+    add(h.date, h.title, h.type, h.blockBooking);
+  }
+  for (const c of custom) {
+    add(c.date, c.title, c.type, c.blockBooking);
+  }
+  return map;
+}
+
+export async function getDayMeta(dateStr: string): Promise<DayMeta> {
+  const map = await getSpecialDaysMap(dateStr, dateStr);
+  return (
+    map.get(dateStr) ?? {
+      labels: [],
+      isHoliday: false,
+      isSpecial: false,
+      bookingBlockedBySpecial: false,
+    }
+  );
 }
 
 export async function getBlockedSlots(fromDate?: string, toDate?: string) {
@@ -125,17 +169,22 @@ export async function getBlockedSlots(fromDate?: string, toDate?: string) {
 
 export async function getDayAvailability(dateStr: string): Promise<DayAvailability> {
   const settings = await getBookingSettings();
+  const meta = await getDayMeta(dateStr);
   const date = parseDateOnly(dateStr);
+
+  const emptyMeta = meta;
+
   if (!date || isPastDate(dateStr)) {
     return {
       date: dateStr,
       isWorkDay: false,
       fullyBlocked: true,
+      meta: emptyMeta,
       slots: [],
     };
   }
 
-  const dow = date.getDay(); // 0 Sun
+  const dow = date.getDay();
   const isWorkDay = settings.workDays.includes(dow);
   const allSlots = generateTimeSlots(
     settings.workStartHour,
@@ -148,6 +197,7 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
       date: dateStr,
       isWorkDay: false,
       fullyBlocked: true,
+      meta,
       slots: allSlots.map((time) => ({
         time,
         available: false,
@@ -156,7 +206,21 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
     };
   }
 
-  const [confirmed, blocked] = await Promise.all([
+  if (meta.bookingBlockedBySpecial) {
+    return {
+      date: dateStr,
+      isWorkDay: true,
+      fullyBlocked: true,
+      meta,
+      slots: allSlots.map((time) => ({
+        time,
+        available: false,
+        reason: meta.labels[0]?.title || "Tatil / özel gün",
+      })),
+    };
+  }
+
+  const [confirmed, blocked, googleBusy] = await Promise.all([
     prisma.inquiry.findMany({
       where: {
         status: "CONFIRMED",
@@ -166,21 +230,24 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
       select: { eventTime: true, name: true },
     }),
     prisma.blockedSlot.findMany({ where: { date: dateStr } }),
+    fetchGoogleBusySlots(dateStr),
   ]);
 
   const dayBlocked = blocked.some((b) => !b.time);
   const blockedTimes = new Set(
     blocked.filter((b) => b.time).map((b) => b.time as string),
   );
-  const confirmedTimes = new Map(
-    confirmed.map((c) => [c.eventTime as string, c.name]),
+  const confirmedTimes = new Set(
+    confirmed.map((c) => c.eventTime as string),
   );
+  const googleBusySet = new Set(googleBusy);
 
   if (dayBlocked) {
     return {
       date: dateStr,
       isWorkDay: true,
       fullyBlocked: true,
+      meta,
       slots: allSlots.map((time) => ({
         time,
         available: false,
@@ -194,11 +261,14 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
       return { time, available: false, reason: "Kapalı" };
     }
     if (confirmedTimes.has(time)) {
-      return {
-        time,
-        available: false,
-        reason: "Dolu",
-      };
+      return { time, available: false, reason: "Dolu" };
+    }
+    // Google busy: match exact or hour:00
+    if (
+      googleBusySet.has(time) ||
+      googleBusySet.has(`${time.slice(0, 2)}:00`)
+    ) {
+      return { time, available: false, reason: "Google Takvim dolu" };
     }
     return { time, available: true };
   });
@@ -207,6 +277,7 @@ export async function getDayAvailability(dateStr: string): Promise<DayAvailabili
     date: dateStr,
     isWorkDay: true,
     fullyBlocked: slots.every((s) => !s.available),
+    meta,
     slots,
   };
 }
@@ -221,6 +292,9 @@ export async function isSlotAvailable(
   const date = parseDateOnly(dateStr);
   if (!date) return false;
   if (!settings.workDays.includes(date.getDay())) return false;
+
+  const meta = await getDayMeta(dateStr);
+  if (meta.bookingBlockedBySpecial) return false;
 
   const validSlots = generateTimeSlots(
     settings.workStartHour,
@@ -245,28 +319,116 @@ export async function isSlotAvailable(
       ...(excludeInquiryId ? { NOT: { id: excludeInquiryId } } : {}),
     },
   });
-  return !confirmed;
+  if (confirmed) return false;
+
+  const googleBusy = await fetchGoogleBusySlots(dateStr);
+  if (
+    googleBusy.includes(timeStr) ||
+    googleBusy.includes(`${timeStr.slice(0, 2)}:00`)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
-export async function getCalendarMonthData(year: number, month: number) {
-  // month 1-12
-  const from = `${year}-${String(month).padStart(2, "0")}-01`;
+/** Ay görünümü için gün özetleri (public booking picker) */
+export async function getMonthDaySummaries(
+  year: number,
+  month: number,
+): Promise<
+  Record<
+    string,
+    {
+      availableCount: number;
+      fullyBlocked: boolean;
+      isWorkDay: boolean;
+      meta: DayMeta;
+    }
+  >
+> {
+  const settings = await getBookingSettings();
   const lastDay = new Date(year, month, 0).getDate();
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
   const to = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-  const [inquiries, blocked, settings] = await Promise.all([
+  const specialMap = await getSpecialDaysMap(from, to);
+  const [confirmed, blocked] = await Promise.all([
     prisma.inquiry.findMany({
       where: {
+        status: "CONFIRMED",
         eventDate: { gte: from, lte: to },
-        NOT: { status: "CANCELLED" },
+        eventTime: { not: null },
       },
-      orderBy: [{ eventDate: "asc" }, { eventTime: "asc" }],
+      select: { eventDate: true, eventTime: true },
     }),
-    getBlockedSlots(from, to),
-    getBookingSettings(),
+    prisma.blockedSlot.findMany({
+      where: { date: { gte: from, lte: to } },
+    }),
   ]);
 
-  return { from, to, inquiries, blocked, settings, year, month, lastDay };
+  const allSlots = generateTimeSlots(
+    settings.workStartHour,
+    settings.workEndHour,
+    settings.slotMinutes,
+  );
+
+  const result: Record<
+    string,
+    {
+      availableCount: number;
+      fullyBlocked: boolean;
+      isWorkDay: boolean;
+      meta: DayMeta;
+    }
+  > = {};
+
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const meta = specialMap.get(dateStr) ?? {
+      labels: [],
+      isHoliday: false,
+      isSpecial: false,
+      bookingBlockedBySpecial: false,
+    };
+    const date = parseDateOnly(dateStr)!;
+    const isWorkDay = settings.workDays.includes(date.getDay());
+    const past = isPastDate(dateStr);
+    const dayBlocked = blocked.some((b) => b.date === dateStr && !b.time);
+    const blockedTimes = new Set(
+      blocked
+        .filter((b) => b.date === dateStr && b.time)
+        .map((b) => b.time as string),
+    );
+    const confirmedTimes = new Set(
+      confirmed
+        .filter((c) => c.eventDate === dateStr)
+        .map((c) => c.eventTime as string),
+    );
+
+    if (past || !isWorkDay || dayBlocked || meta.bookingBlockedBySpecial) {
+      result[dateStr] = {
+        availableCount: 0,
+        fullyBlocked: true,
+        isWorkDay: isWorkDay && !past,
+        meta,
+      };
+      continue;
+    }
+
+    let availableCount = 0;
+    for (const t of allSlots) {
+      if (!blockedTimes.has(t) && !confirmedTimes.has(t)) availableCount++;
+    }
+    result[dateStr] = {
+      availableCount,
+      fullyBlocked: availableCount === 0,
+      isWorkDay: true,
+      meta,
+    };
+  }
+
+  return result;
 }
 
 export function formatDateTR(dateStr: string) {
@@ -281,3 +443,5 @@ export function formatDateTR(dateStr: string) {
     return dateStr;
   }
 }
+
+export type { HolidayInfo };

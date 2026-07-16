@@ -1,14 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useState } from "react";
 import {
   submitInquiryAction,
   type InquiryState,
 } from "@/lib/actions/inquiry";
-import {
-  fetchBookingSettingsAction,
-  fetchDaySlotsAction,
-} from "@/lib/actions/availability";
+import { BookingDatePicker } from "@/components/forms/BookingDatePicker";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -39,50 +36,6 @@ export function InquiryForm({
 
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("");
-  const [slots, setSlots] = useState<
-    { time: string; available: boolean; reason?: string }[]
-  >([]);
-  const [slotsLoading, startSlots] = useTransition();
-  const [horizon, setHorizon] = useState(90);
-  const [dayNote, setDayNote] = useState("");
-
-  const minDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1); // yarından itibaren
-    return d.toISOString().slice(0, 10);
-  }, []);
-
-  const maxDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + horizon);
-    return d.toISOString().slice(0, 10);
-  }, [horizon]);
-
-  useEffect(() => {
-    fetchBookingSettingsAction().then((s) => {
-      setHorizon(s.bookingHorizonDays || 90);
-    });
-  }, []);
-
-  useEffect(() => {
-    setEventTime("");
-    if (!eventDate) {
-      setSlots([]);
-      setDayNote("");
-      return;
-    }
-    startSlots(async () => {
-      const day = await fetchDaySlotsAction(eventDate);
-      setSlots(day.slots);
-      if (!day.isWorkDay) {
-        setDayNote("Bu gün çalışma günü değil.");
-      } else if (day.fullyBlocked) {
-        setDayNote("Bu günde müsait saat kalmadı.");
-      } else {
-        setDayNote("Yeşil saatler müsait — birini seçin.");
-      }
-    });
-  }, [eventDate]);
 
   if (state.ok) {
     return (
@@ -95,7 +48,7 @@ export function InquiryForm({
         <p className="font-serif text-2xl text-foreground">Teşekkürler</p>
         <p className="mt-3 text-sm text-muted">
           Talebiniz alındı. Onay sonrası seçtiğiniz tarih/saat takvimde rezerve
-          edilir.
+          edilir; dolu slotlar başkalarına kapanır.
         </p>
       </div>
     );
@@ -104,6 +57,7 @@ export function InquiryForm({
   return (
     <form action={action} className={cn("space-y-4", className)}>
       <input type="hidden" name="source" value={source} />
+      <input type="hidden" name="eventDate" value={eventDate} />
       <input type="hidden" name="eventTime" value={eventTime} />
       <input
         type="text"
@@ -157,72 +111,20 @@ export function InquiryForm({
         </div>
       </div>
 
-      <div className={cn("grid gap-4", !compact && "sm:grid-cols-2")}>
-        <div>
-          <label htmlFor="eventDate" className="mb-1.5 block text-xs text-muted">
-            Çekim / etkinlik tarihi {requireSlot ? "*" : ""}
-          </label>
-          <input
-            id="eventDate"
-            name="eventDate"
-            type="date"
-            required={requireSlot}
-            min={minDate}
-            max={maxDate}
-            value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            className={fieldClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="location" className="mb-1.5 block text-xs text-muted">
-            Lokasyon
-          </label>
-          <input id="location" name="location" className={fieldClass} placeholder="Şehir / mekân" />
-        </div>
+      <div>
+        <label htmlFor="location" className="mb-1.5 block text-xs text-muted">
+          Lokasyon
+        </label>
+        <input id="location" name="location" className={fieldClass} placeholder="Şehir / mekân" />
       </div>
 
-      {eventDate && (
-        <div>
-          <p className="mb-2 text-xs text-muted">
-            Saat seçin {requireSlot ? "*" : ""}{" "}
-            {slotsLoading && <span className="text-accent">yükleniyor…</span>}
-          </p>
-          {dayNote && (
-            <p className="mb-3 text-xs text-muted">{dayNote}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {slots.map((s) => {
-              const selected = eventTime === s.time;
-              return (
-                <button
-                  key={s.time}
-                  type="button"
-                  disabled={!s.available}
-                  onClick={() => setEventTime(s.time)}
-                  title={s.available ? "Müsait" : s.reason || "Dolu"}
-                  className={cn(
-                    "min-w-[4.5rem] rounded-full border px-3 py-2 text-sm transition",
-                    !s.available &&
-                      "cursor-not-allowed border-border bg-muted-bg text-muted line-through opacity-60",
-                    s.available &&
-                      !selected &&
-                      "border-success/40 bg-success/10 text-foreground hover:border-success",
-                    s.available &&
-                      selected &&
-                      "border-accent bg-accent text-white shadow-sm",
-                  )}
-                >
-                  {s.time}
-                </button>
-              );
-            })}
-          </div>
-          {requireSlot && !eventTime && (
-            <p className="mt-2 text-xs text-danger">Devam için müsait bir saat seçin.</p>
-          )}
-        </div>
-      )}
+      <BookingDatePicker
+        eventDate={eventDate}
+        eventTime={eventTime}
+        onDateChange={setEventDate}
+        onTimeChange={setEventTime}
+        requireSlot={requireSlot}
+      />
 
       <div>
         <label htmlFor="budget" className="mb-1.5 block text-xs text-muted">
@@ -257,7 +159,8 @@ export function InquiryForm({
           <a href="/gizlilik" className="text-accent underline-offset-2 hover:underline">
             KVKK aydınlatma metnini
           </a>{" "}
-          okudum, kişisel verilerimin iletişim amacıyla işlenmesini kabul ediyorum. *
+          okudum, kişisel verilerimin iletişim ve randevu amacıyla işlenmesini kabul
+          ediyorum. *
         </span>
       </label>
 

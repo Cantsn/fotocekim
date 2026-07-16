@@ -50,6 +50,13 @@ model SiteSettings {
   /// JSON: 0=Pazar ... 6=Cumartesi — varsayılan Pzt–Cmt
   workDays           String @default("[1,2,3,4,5,6]")
   bookingHorizonDays Int    @default(90)
+  /// Google Calendar
+  googleCalEnabled   Boolean @default(false)
+  googleCalId        String  @default("")
+  googleCalApiKey    String  @default("")
+  googleCalEmbedUrl  String  @default("")
+  /// ICS abonelik gizli anahtarı (Google Takvim URL ile abone olur)
+  calendarFeedToken  String  @default("")
 }
 
 model Service {
@@ -161,4 +168,18 @@ model BlockedSlot {
   time      String?
   reason    String   @default("")
   createdAt DateTime @default(now())
+}
+
+/// Özel gün / tatil / anma günü (randevu UI + müsaitlik)
+model SpecialDay {
+  id           String  @id @default(cuid())
+  /// YYYY-MM-DD
+  date         String
+  title        String
+  /// HOLIDAY | SPECIAL | CLOSED
+  type         String  @default("SPECIAL")
+  note         String  @default("")
+  /// true ise o gün randevu alınamaz
+  blockBooking Boolean @default(true)
+  createdAt    DateTime @default(now())
 }

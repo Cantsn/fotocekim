@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth";
 import {
   getDayAvailability,
   getBookingSettings,
-  isSlotAvailable,
+  getMonthDaySummaries,
   type DayAvailability,
 } from "@/lib/availability";
 
@@ -15,6 +16,10 @@ export async function fetchDaySlotsAction(
   date: string,
 ): Promise<DayAvailability> {
   return getDayAvailability(date);
+}
+
+export async function fetchMonthSummariesAction(year: number, month: number) {
+  return getMonthDaySummaries(year, month);
 }
 
 export async function fetchBookingSettingsAction() {
@@ -77,6 +82,74 @@ export async function saveBookingSettingsAction(formData: FormData) {
   revalidatePath("/randevu");
 }
 
-export async function checkSlotAvailableAction(date: string, time: string) {
-  return isSlotAvailable(date, time);
+export async function saveSpecialDayAction(formData: FormData) {
+  await requirePermission("inquiries");
+  const date = String(formData.get("date") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const type = String(formData.get("type") ?? "SPECIAL");
+  const note = String(formData.get("note") ?? "").trim();
+  const blockBooking =
+    formData.get("blockBooking") === "on" ||
+    formData.get("blockBooking") === "true";
+  if (!date || !title) return;
+  await prisma.specialDay.create({
+    data: { date, title, type, note, blockBooking },
+  });
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
+}
+
+export async function deleteSpecialDayAction(formData: FormData) {
+  await requirePermission("inquiries");
+  const id = String(formData.get("id") ?? "");
+  if (id) await prisma.specialDay.delete({ where: { id } });
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
+}
+
+export async function saveGoogleCalendarSettingsAction(formData: FormData) {
+  await requirePermission("inquiries");
+  const googleCalEnabled =
+    formData.get("googleCalEnabled") === "on" ||
+    formData.get("googleCalEnabled") === "true";
+  const googleCalId = String(formData.get("googleCalId") ?? "").trim();
+  const googleCalApiKeyInput = String(formData.get("googleCalApiKey") ?? "");
+  const googleCalEmbedUrl = String(formData.get("googleCalEmbedUrl") ?? "").trim();
+  const regenToken = formData.get("regenToken") === "1";
+
+  const existing = await prisma.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+
+  let calendarFeedToken = existing?.calendarFeedToken || "";
+  if (!calendarFeedToken || regenToken) {
+    calendarFeedToken = randomBytes(24).toString("hex");
+  }
+
+  const googleCalApiKey =
+    googleCalApiKeyInput.trim() !== ""
+      ? googleCalApiKeyInput.trim()
+      : (existing?.googleCalApiKey ?? "");
+
+  await prisma.siteSettings.upsert({
+    where: { id: "default" },
+    create: {
+      id: "default",
+      siteName: existing?.siteName || "FotoCekim",
+      googleCalEnabled,
+      googleCalId,
+      googleCalApiKey,
+      googleCalEmbedUrl,
+      calendarFeedToken,
+    },
+    update: {
+      googleCalEnabled,
+      googleCalId,
+      googleCalApiKey,
+      googleCalEmbedUrl,
+      calendarFeedToken,
+    },
+  });
+  revalidatePath("/admin/takvim");
+  revalidatePath("/randevu");
 }
