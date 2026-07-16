@@ -143,8 +143,9 @@ export default async function AdminTakvimPage() {
         <div className="rounded-2xl border border-border bg-card p-6">
           <h2 className="font-serif text-xl text-foreground">Özel gün / tatil ekle</h2>
           <p className="mt-1 text-xs text-muted">
-            Sitede renkle gösterilir. “Randevuyu engelle” işaretliyse o gün slot
-            seçilemez. TR resmi tatilleri sistemde varsayılan yüklüdür.
+            Müşteri takvimde renkli görür ve tıklayınca adını okur. TR resmi
+            tatilleri otomatik bildirilir; randevuyu kapatmaz. Kapatmak için
+            “Randevuyu engelle”yi işaretleyin veya “Gün kapat” kullanın.
           </p>
           <form action={saveSpecialDayAction} className="mt-4 space-y-3">
             <label className="block text-xs text-muted">
@@ -188,10 +189,9 @@ export default async function AdminTakvimPage() {
               <input
                 type="checkbox"
                 name="blockBooking"
-                defaultChecked
                 className="accent-[var(--accent)]"
               />
-              Randevu almayı engelle
+              Randevu almayı engelle (işaretlemezseniz sadece bildirilir)
             </label>
             <button
               type="submit"
@@ -231,7 +231,7 @@ export default async function AdminTakvimPage() {
 
           <div className="mt-6">
             <p className="text-xs font-medium text-muted uppercase">
-              Yaklaşan TR tatil / özel günler (otomatik)
+              Yaklaşan TR tatil / özel günler (otomatik · sadece bilgi)
             </p>
             <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-muted">
               {upcomingHolidays.map((h) => (

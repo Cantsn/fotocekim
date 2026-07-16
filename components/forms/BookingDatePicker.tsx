@@ -127,6 +127,12 @@ export function BookingDatePicker({
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-rose-400" /> Dolu / kapalı
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500" /> Tatil
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-violet-500" /> Özel gün
+        </span>
         {requireSlot && (
           <span className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-accent">
             *
@@ -173,6 +179,10 @@ export function BookingDatePicker({
               const sum = summaries[dateStr];
               const outOfRange = dateStr < minDate || dateStr > maxDate;
               const selected = eventDate === dateStr;
+              const meta = sum?.meta;
+              const hasHoliday = Boolean(meta?.isHoliday);
+              const hasSpecial = Boolean(meta?.isSpecial) && !hasHoliday;
+              const hasMark = hasHoliday || hasSpecial || Boolean(meta?.labels?.length);
               const selectable =
                 !outOfRange && sum && !sum.fullyBlocked && sum.isWorkDay;
 
@@ -182,18 +192,40 @@ export function BookingDatePicker({
                   type="button"
                   disabled={!selectable}
                   onClick={() => onDateChange(dateStr)}
+                  title={
+                    meta?.labels?.map((l) => l.title).join(" · ") || undefined
+                  }
                   className={cn(
-                    "flex aspect-square items-center justify-center rounded-lg border text-xs font-medium transition sm:rounded-xl sm:text-sm",
+                    "relative flex aspect-square flex-col items-center justify-center rounded-lg border text-xs font-medium transition sm:rounded-xl sm:text-sm",
                     selected && "border-accent bg-accent text-white shadow",
                     !selected &&
                       selectable &&
+                      !hasMark &&
                       "border-emerald-500/35 bg-emerald-500/10 text-foreground active:scale-95",
+                    !selected &&
+                      selectable &&
+                      hasHoliday &&
+                      "border-amber-500/50 bg-amber-500/15 text-foreground active:scale-95",
+                    !selected &&
+                      selectable &&
+                      hasSpecial &&
+                      "border-violet-500/45 bg-violet-500/12 text-foreground active:scale-95",
                     !selected &&
                       !selectable &&
                       "cursor-not-allowed border-border bg-muted-bg text-muted opacity-55",
                   )}
                 >
-                  {day}
+                  <span>{day}</span>
+                  {hasMark && (
+                    <span
+                      className={cn(
+                        "mt-0.5 h-1 w-1 rounded-full sm:h-1.5 sm:w-1.5",
+                        hasHoliday && "bg-amber-500",
+                        hasSpecial && "bg-violet-500",
+                        selected && "bg-white",
+                      )}
+                    />
+                  )}
                 </button>
               );
             })}
@@ -206,11 +238,38 @@ export function BookingDatePicker({
               <p className="font-serif text-base text-foreground sm:text-lg">
                 {formatDateDot(eventDate)}
               </p>
-              {dayMeta && dayMeta.labels[0] && (
-                <p className="mt-1 text-[11px] text-muted">
-                  {dayMeta.labels[0].title}
-                </p>
+
+              {dayMeta && dayMeta.labels.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {dayMeta.labels.map((l) => (
+                    <div
+                      key={`${l.type}-${l.title}`}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs",
+                        l.type === "HOLIDAY" || l.type === "CLOSED"
+                          ? "border-amber-500/40 bg-amber-500/10 text-amber-950"
+                          : "border-violet-500/40 bg-violet-500/10 text-violet-950",
+                      )}
+                    >
+                      <span className="font-medium">
+                        {l.type === "HOLIDAY"
+                          ? "Tatil"
+                          : l.type === "CLOSED"
+                            ? "Kapalı"
+                            : "Özel gün"}
+                        :
+                      </span>{" "}
+                      {l.title}
+                      {dayMeta.bookingBlockedBySpecial && (
+                        <span className="mt-0.5 block text-[10px] opacity-80">
+                          Bu gün randevuya kapalı
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
+
               <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
                 {loadingSlots && (
                   <p className="col-span-full text-xs text-muted">…</p>
@@ -228,7 +287,9 @@ export function BookingDatePicker({
                         s.available &&
                           !sel &&
                           "border-emerald-500/40 bg-card text-foreground",
-                        s.available && sel && "border-accent bg-accent text-white",
+                        s.available &&
+                          sel &&
+                          "border-accent bg-accent text-white",
                         !s.available &&
                           "cursor-not-allowed border-border bg-muted-bg text-muted line-through opacity-50",
                       )}
