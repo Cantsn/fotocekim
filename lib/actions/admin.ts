@@ -406,7 +406,10 @@ export async function saveSettingsAction(
   });
 
   revalidatePublic();
-  return { ok: true, message: "Ayarlar kaydedildi." };
+  // SEO metadata root layout generateMetadata ile gelir
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Ayarlar kaydedildi. SEO ve site bilgileri güncellendi." };
 }
 
 export async function testSmtpAction(): Promise<ActionState> {

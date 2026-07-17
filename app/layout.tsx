@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
-import { siteSettings } from "@/lib/data";
+import { getSiteSettings } from "@/lib/data";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,23 +19,42 @@ const display = Cormorant_Garamond({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
-  title: {
-    default: siteSettings.seoTitle,
-    template: `%s | ${siteSettings.siteName}`,
-  },
-  description: siteSettings.seoDescription,
-  openGraph: {
-    type: "website",
-    locale: "tr_TR",
-    siteName: siteSettings.siteName,
-    title: siteSettings.seoTitle,
-    description: siteSettings.seoDescription,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  const title =
+    settings.seoTitle?.trim() ||
+    `${settings.siteName} | Fotoğraf & Video`;
+  const description =
+    settings.seoDescription?.trim() ||
+    settings.tagline ||
+    "Profesyonel fotoğraf ve video stüdyosu.";
+
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "http://localhost:3000";
+
+  return {
+    metadataBase: new URL(base),
+    title: {
+      default: title,
+      template: `%s | ${settings.siteName}`,
+    },
+    description,
+    openGraph: {
+      type: "website",
+      locale: "tr_TR",
+      siteName: settings.siteName,
+      title,
+      description,
+      url: base,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
 
 export default function RootLayout({
   children,

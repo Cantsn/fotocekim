@@ -3,13 +3,18 @@ import { SiteFooter } from "@/components/layout/SiteFooter";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { getSiteSettings } from "@/lib/data";
 
 export default async function SiteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [locale, t] = await Promise.all([getLocale(), getDictionary()]);
+  const [locale, t, settings] = await Promise.all([
+    getLocale(),
+    getDictionary(),
+    getSiteSettings(),
+  ]);
 
   return (
     <LocaleProvider initialLocale={locale}>
@@ -19,7 +24,7 @@ export default async function SiteLayout({
       >
         {t.nav.skip}
       </a>
-      <SiteHeader />
+      <SiteHeader siteName={settings.siteName} />
       <main id="main" className="flex-1">
         {children}
       </main>

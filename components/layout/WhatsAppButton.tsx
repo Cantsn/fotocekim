@@ -1,9 +1,10 @@
-import { siteSettings } from "@/lib/data";
+import { getSiteSettings } from "@/lib/data";
 import { whatsappUrl } from "@/lib/utils";
 
-export function WhatsAppButton() {
+export async function WhatsAppButton() {
+  const settings = await getSiteSettings();
   const href = whatsappUrl(
-    siteSettings.whatsapp,
+    settings.whatsapp,
     "Merhaba! Çekim hakkında bilgi almak istiyorum.",
   );
 

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarPlus, Menu, X } from "lucide-react";
-import { siteSettings } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { ButtonLink } from "@/components/ui/Button";
 import {
@@ -11,7 +10,7 @@ import {
   useLocale,
 } from "@/components/i18n/LocaleProvider";
 
-export function SiteHeader() {
+export function SiteHeader({ siteName }: { siteName: string }) {
   const [open, setOpen] = useState(false);
   const { t } = useLocale();
 
@@ -31,7 +30,7 @@ export function SiteHeader() {
           href="/"
           className="shrink-0 font-serif text-lg tracking-wide text-foreground sm:text-xl"
         >
-          {siteSettings.siteName}
+          {siteName}
         </Link>
 
         <nav
