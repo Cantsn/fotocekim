@@ -28,6 +28,9 @@ export const defaultSiteSettings: SiteSettings = {
   seoTitle: "FotoCekim | Düğün, Dış Çekim, Ürün & Drone Fotoğrafçılığı",
   seoDescription:
     "Düğün, nişan, dış çekim, ürün/dükkan ve drone çekimleri. Premium fotoğraf ve video stüdyosu.",
+  heroMediaType: "NONE",
+  heroMediaUrl: "",
+  heroPosterUrl: "",
   smtpEnabled: false,
   smtpHost: "",
   smtpPort: 587,
@@ -206,6 +209,10 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   try {
     const row = await prisma.siteSettings.findUnique({ where: { id: "default" } });
     if (!row) return defaultSiteSettings;
+    const heroMediaType =
+      row.heroMediaType === "IMAGE" || row.heroMediaType === "VIDEO"
+        ? row.heroMediaType
+        : "NONE";
     return {
       siteName: row.siteName,
       tagline: row.tagline,
@@ -220,6 +227,9 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       showPrices: row.showPrices,
       seoTitle: row.seoTitle,
       seoDescription: row.seoDescription,
+      heroMediaType,
+      heroMediaUrl: row.heroMediaUrl ?? "",
+      heroPosterUrl: row.heroPosterUrl ?? "",
       smtpEnabled: row.smtpEnabled,
       smtpHost: row.smtpHost,
       smtpPort: row.smtpPort,

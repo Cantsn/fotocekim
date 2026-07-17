@@ -10,7 +10,12 @@ import {
   type Permission,
   PERMISSIONS,
 } from "@/lib/permissions";
-import { deleteUploadedFile, saveUploadedImage, slugify } from "@/lib/upload";
+import {
+  deleteUploadedFile,
+  saveUploadedImage,
+  saveUploadedMedia,
+  slugify,
+} from "@/lib/upload";
 import { testSmtpConnection } from "@/lib/mail";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
@@ -838,6 +843,160 @@ export async function saveSettingsAction(
   revalidatePath("/", "layout");
   revalidatePath("/admin/ayarlar");
   return { ok: true, message: "Ayarlar kaydedildi. SEO ve site bilgileri güncellendi." };
+}
+
+export async function uploadHeroMediaAction(formData: FormData) {
+  await requirePermission("settings");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Dosya seçin." };
+  }
+  try {
+    const { url, kind } = await saveUploadedMedia(file);
+    const existing = await prisma.siteSettings.findUnique({
+      where: { id: "default" },
+    });
+    if (existing?.heroMediaUrl) {
+      await deleteUploadedFile(existing.heroMediaUrl);
+    }
+    await prisma.siteSettings.upsert({
+      where: { id: "default" },
+      create: {
+        id: "default",
+        siteName: existing?.siteName ?? "FotoCekim",
+        heroMediaType: kind,
+        heroMediaUrl: url,
+      },
+      update: {
+        heroMediaType: kind,
+        heroMediaUrl: url,
+      },
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Hero medyası güncellendi." };
+}
+
+export async function uploadHeroPosterAction(formData: FormData) {
+  await requirePermission("settings");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Poster görseli seçin." };
+  }
+  try {
+    const url = await saveUploadedImage(file);
+    const existing = await prisma.siteSettings.findUnique({
+      where: { id: "default" },
+    });
+    if (existing?.heroPosterUrl) {
+      await deleteUploadedFile(existing.heroPosterUrl);
+    }
+    await prisma.siteSettings.upsert({
+      where: { id: "default" },
+      create: {
+        id: "default",
+        siteName: existing?.siteName ?? "FotoCekim",
+        heroPosterUrl: url,
+      },
+      update: { heroPosterUrl: url },
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Hero poster güncellendi." };
+}
+
+export async function saveHeroMediaUrlAction(formData: FormData) {
+  await requirePermission("settings");
+  const rawUrl = String(formData.get("url") ?? "").trim();
+  const typeRaw = String(formData.get("type") ?? "IMAGE").toUpperCase();
+  const type = typeRaw === "VIDEO" ? "VIDEO" : "IMAGE";
+
+  if (!rawUrl) return { error: "URL girin." };
+  // Allow relative /api/files/... or absolute http(s)
+  if (
+    !rawUrl.startsWith("/api/files/") &&
+    !rawUrl.startsWith("https://") &&
+    !rawUrl.startsWith("http://")
+  ) {
+    return { error: "Geçerli bir URL girin (https://… veya yüklenen dosya)." };
+  }
+
+  const existing = await prisma.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+  // Only delete previous if it was an uploaded file and different from new
+  if (
+    existing?.heroMediaUrl &&
+    existing.heroMediaUrl !== rawUrl &&
+    existing.heroMediaUrl.startsWith("/api/files/")
+  ) {
+    await deleteUploadedFile(existing.heroMediaUrl);
+  }
+
+  await prisma.siteSettings.upsert({
+    where: { id: "default" },
+    create: {
+      id: "default",
+      siteName: existing?.siteName ?? "FotoCekim",
+      heroMediaType: type,
+      heroMediaUrl: rawUrl,
+    },
+    update: {
+      heroMediaType: type,
+      heroMediaUrl: rawUrl,
+    },
+  });
+
+  revalidatePublic();
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Hero URL kaydedildi." };
+}
+
+export async function clearHeroMediaAction() {
+  await requirePermission("settings");
+  const existing = await prisma.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+  if (existing?.heroMediaUrl) {
+    await deleteUploadedFile(existing.heroMediaUrl);
+  }
+  if (existing?.heroPosterUrl) {
+    await deleteUploadedFile(existing.heroPosterUrl);
+  }
+  await prisma.siteSettings.update({
+    where: { id: "default" },
+    data: {
+      heroMediaType: "NONE",
+      heroMediaUrl: "",
+      heroPosterUrl: "",
+    },
+  });
+  revalidatePublic();
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Hero medyası kaldırıldı." };
+}
+
+export async function clearHeroPosterAction() {
+  await requirePermission("settings");
+  const existing = await prisma.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+  if (existing?.heroPosterUrl) {
+    await deleteUploadedFile(existing.heroPosterUrl);
+  }
+  await prisma.siteSettings.update({
+    where: { id: "default" },
+    data: { heroPosterUrl: "" },
+  });
+  revalidatePublic();
+  revalidatePath("/admin/ayarlar");
+  return { ok: true, message: "Poster kaldırıldı." };
 }
 
 export async function testSmtpAction(): Promise<ActionState> {

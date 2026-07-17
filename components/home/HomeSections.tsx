@@ -25,14 +25,40 @@ import { PackageCard } from "@/components/packages/PackageCard";
 
 export async function HeroSection() {
   const [settings, t] = await Promise.all([getSiteSettings(), getDictionary()]);
+  const hasMedia =
+    settings.heroMediaType !== "NONE" && Boolean(settings.heroMediaUrl);
+
   return (
     <section className="relative overflow-hidden">
-      <MediaPlaceholder
-        label="Hero"
-        aspect="wide"
-        className="min-h-[70vh] sm:min-h-[72vh] md:min-h-[78vh]"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/30" />
+      <div className="relative min-h-[70vh] sm:min-h-[72vh] md:min-h-[78vh]">
+        {hasMedia && settings.heroMediaType === "VIDEO" ? (
+          <video
+            className="absolute inset-0 h-full w-full object-cover"
+            src={settings.heroMediaUrl}
+            poster={settings.heroPosterUrl || undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            // iOS / accessibility: no controls on public hero
+            aria-hidden
+          />
+        ) : hasMedia && settings.heroMediaType === "IMAGE" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={settings.heroMediaUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <MediaPlaceholder
+            label="Hero"
+            aspect="wide"
+            className="absolute inset-0 min-h-full"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/25" />
+      </div>
       <Container className="absolute inset-x-0 bottom-0 pb-12 pt-28 sm:pb-16 sm:pt-32">
         <p className="mb-3 flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-accent uppercase sm:mb-4">
           <Camera className="h-3.5 w-3.5" />

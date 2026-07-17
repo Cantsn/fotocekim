@@ -95,6 +95,8 @@ export interface Faq {
   published: boolean;
 }
 
+export type HeroMediaType = "NONE" | "IMAGE" | "VIDEO";
+
 export interface SiteSettings {
   siteName: string;
   tagline: string;
@@ -109,6 +111,11 @@ export interface SiteSettings {
   showPrices: boolean;
   seoTitle: string;
   seoDescription: string;
+  /** Ana sayfa hero medyası */
+  heroMediaType: HeroMediaType;
+  heroMediaUrl: string;
+  /** Video poster / yedek görsel */
+  heroPosterUrl: string;
   smtpEnabled: boolean;
   smtpHost: string;
   smtpPort: number;

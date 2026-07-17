@@ -35,6 +35,11 @@ model SiteSettings {
   showPrices     Boolean @default(true)
   seoTitle       String  @default("")
   seoDescription String  @default("")
+  /// Ana sayfa hero: NONE | IMAGE | VIDEO
+  heroMediaType  String  @default("NONE")
+  heroMediaUrl   String  @default("")
+  /// Video için poster / kapak görseli (opsiyonel)
+  heroPosterUrl  String  @default("")
   /// SMTP
   smtpEnabled    Boolean @default(false)
   smtpHost       String  @default("")
