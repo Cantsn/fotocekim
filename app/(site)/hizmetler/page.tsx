@@ -33,12 +33,23 @@ export default async function HizmetlerPage() {
               href={`/hizmetler/${s.slug}`}
               className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/40"
             >
-              <MediaPlaceholder label={s.title} aspect="video" />
+              {s.coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={s.coverUrl}
+                  alt={s.title}
+                  className="aspect-video w-full object-cover transition group-hover:opacity-95"
+                />
+              ) : (
+                <MediaPlaceholder label={s.title} aspect="video" />
+              )}
               <div className="p-5 sm:p-6">
                 <h2 className="font-serif text-xl text-foreground group-hover:text-accent sm:text-2xl">
                   {s.title}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{s.shortDesc}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
+                  {s.shortDesc}
+                </p>
                 <span className="mt-4 inline-block text-sm text-accent">
                   {t.services.detail} →
                 </span>

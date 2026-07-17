@@ -189,6 +189,7 @@ export async function saveServiceAction(
 
   if (!title) return { error: "Başlık gerekli." };
 
+  let serviceId = id;
   try {
     if (id) {
       await prisma.service.update({
@@ -198,23 +199,220 @@ export async function saveServiceAction(
     } else {
       const clash = await prisma.service.findUnique({ where: { slug } });
       if (clash) slug = `${slug}-${Date.now().toString(36)}`;
-      await prisma.service.create({
+      const created = await prisma.service.create({
         data: { title, slug, shortDesc, content, order, published },
       });
+      serviceId = created.id;
     }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Kayıt hatası" };
   }
 
   revalidatePublic();
+  revalidatePath("/admin/hizmetler");
+  // Yeni kayıttan sonra görsel yönetimine yönlendir
+  if (!id && serviceId) {
+    redirect(`/admin/hizmetler/${serviceId}`);
+  }
   redirect("/admin/hizmetler");
 }
 
 export async function deleteServiceAction(formData: FormData) {
   await requirePermission("services");
   const id = String(formData.get("id") ?? "");
-  if (id) await prisma.service.delete({ where: { id } });
+  if (!id) return;
+  const service = await prisma.service.findUnique({
+    where: { id },
+    include: { images: true },
+  });
+  if (!service) return;
+  await deleteUploadedFile(service.coverUrl);
+  for (const img of service.images) {
+    await deleteUploadedFile(img.url);
+  }
+  await prisma.service.delete({ where: { id } });
   revalidatePublic();
+  revalidatePath("/admin/hizmetler");
+}
+
+export async function uploadServiceImagesAction(formData: FormData) {
+  await requirePermission("services");
+  const serviceId = String(formData.get("entityId") ?? "");
+  if (!serviceId) return { error: "Hizmet bulunamadı." };
+  const service = await prisma.service.findUnique({ where: { id: serviceId } });
+  if (!service) return { error: "Hizmet bulunamadı." };
+
+  const files = formData.getAll("files");
+  let orderBase = await prisma.serviceImage.count({ where: { serviceId } });
+  let uploaded = 0;
+  try {
+    for (const item of files) {
+      if (item instanceof File && item.size > 0) {
+        const url = await saveUploadedImage(item);
+        await prisma.serviceImage.create({
+          data: {
+            serviceId,
+            url,
+            alt: service.title,
+            order: orderBase++,
+          },
+        });
+        uploaded += 1;
+        // İlk görsel kapak yoksa kapak olsun
+        if (!service.coverUrl && uploaded === 1) {
+          await prisma.service.update({
+            where: { id: serviceId },
+            data: { coverUrl: url },
+          });
+        }
+      }
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${serviceId}`);
+  return { ok: true, message: `${uploaded} görsel yüklendi` };
+}
+
+export async function uploadServiceCoverAction(formData: FormData) {
+  await requirePermission("services");
+  const serviceId = String(formData.get("entityId") ?? "");
+  if (!serviceId) return { error: "Hizmet bulunamadı." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Dosya seçin." };
+  }
+  try {
+    const url = await saveUploadedImage(file);
+    const prev = await prisma.service.findUnique({ where: { id: serviceId } });
+    if (prev?.coverUrl) await deleteUploadedFile(prev.coverUrl);
+    await prisma.service.update({
+      where: { id: serviceId },
+      data: { coverUrl: url },
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${serviceId}`);
+  return { ok: true };
+}
+
+export async function setServiceCoverFromImageAction(formData: FormData) {
+  await requirePermission("services");
+  const serviceId = String(formData.get("entityId") ?? "");
+  const imageId = String(formData.get("imageId") ?? "");
+  if (!serviceId || !imageId) return;
+  const img = await prisma.serviceImage.findFirst({
+    where: { id: imageId, serviceId },
+  });
+  if (!img) return;
+  await prisma.service.update({
+    where: { id: serviceId },
+    data: { coverUrl: img.url },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${serviceId}`);
+}
+
+export async function clearServiceCoverAction(formData: FormData) {
+  await requirePermission("services");
+  const serviceId = String(formData.get("entityId") ?? "");
+  if (!serviceId) return;
+  const prev = await prisma.service.findUnique({ where: { id: serviceId } });
+  // Cover file only delete if not used in gallery
+  if (prev?.coverUrl) {
+    const inGallery = await prisma.serviceImage.findFirst({
+      where: { serviceId, url: prev.coverUrl },
+    });
+    if (!inGallery) await deleteUploadedFile(prev.coverUrl);
+  }
+  await prisma.service.update({
+    where: { id: serviceId },
+    data: { coverUrl: null },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${serviceId}`);
+}
+
+export async function deleteServiceImageAction(formData: FormData) {
+  await requirePermission("services");
+  const id = String(formData.get("imageId") ?? "");
+  if (!id) return;
+  const img = await prisma.serviceImage.findUnique({ where: { id } });
+  if (!img) return;
+  const service = await prisma.service.findUnique({
+    where: { id: img.serviceId },
+  });
+  await deleteUploadedFile(img.url);
+  await prisma.serviceImage.delete({ where: { id } });
+  if (service?.coverUrl === img.url) {
+    const next = await prisma.serviceImage.findFirst({
+      where: { serviceId: img.serviceId },
+      orderBy: { order: "asc" },
+    });
+    await prisma.service.update({
+      where: { id: img.serviceId },
+      data: { coverUrl: next?.url ?? null },
+    });
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${img.serviceId}`);
+}
+
+export async function moveServiceImageAction(formData: FormData) {
+  await requirePermission("services");
+  const id = String(formData.get("imageId") ?? "");
+  const dir = String(formData.get("direction") ?? "");
+  if (!id || (dir !== "left" && dir !== "right")) return;
+  const img = await prisma.serviceImage.findUnique({ where: { id } });
+  if (!img) return;
+  const siblings = await prisma.serviceImage.findMany({
+    where: { serviceId: img.serviceId },
+    orderBy: { order: "asc" },
+  });
+  const idx = siblings.findIndex((s) => s.id === id);
+  const swapWith = dir === "left" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapWith < 0 || swapWith >= siblings.length) return;
+  const a = siblings[idx];
+  const b = siblings[swapWith];
+  await prisma.$transaction([
+    prisma.serviceImage.update({
+      where: { id: a.id },
+      data: { order: b.order },
+    }),
+    prisma.serviceImage.update({
+      where: { id: b.id },
+      data: { order: a.order },
+    }),
+  ]);
+  // Fix if orders were equal
+  if (a.order === b.order) {
+    await prisma.serviceImage.update({
+      where: { id: a.id },
+      data: { order: swapWith },
+    });
+    await prisma.serviceImage.update({
+      where: { id: b.id },
+      data: { order: idx },
+    });
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${img.serviceId}`);
+}
+
+export async function updateServiceImageAltAction(formData: FormData) {
+  await requirePermission("services");
+  const id = String(formData.get("imageId") ?? "");
+  const alt = String(formData.get("alt") ?? "").trim();
+  if (!id) return;
+  const img = await prisma.serviceImage.update({
+    where: { id },
+    data: { alt },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/hizmetler/${img.serviceId}`);
 }
 
 // ---------- Packages ----------
@@ -336,8 +534,8 @@ export async function saveProjectAction(
     [clientFirstName, clientLastName].filter(Boolean).join(" ") || null;
   const date = dateRaw ? new Date(dateRaw) : null;
 
+  let projectId = id;
   try {
-    let projectId = id;
     if (id) {
       await prisma.project.update({
         where: { id },
@@ -379,42 +577,15 @@ export async function saveProjectAction(
       });
       projectId = created.id;
     }
-
-    // Cover upload
-    const cover = formData.get("cover");
-    if (cover instanceof File && cover.size > 0) {
-      const url = await saveUploadedImage(cover);
-      const prev = await prisma.project.findUnique({ where: { id: projectId } });
-      if (prev?.coverUrl) await deleteUploadedFile(prev.coverUrl);
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { coverUrl: url },
-      });
-    }
-
-    // Gallery multi upload
-    const gallery = formData.getAll("gallery");
-    let orderBase = await prisma.projectImage.count({
-      where: { projectId },
-    });
-    for (const item of gallery) {
-      if (item instanceof File && item.size > 0) {
-        const url = await saveUploadedImage(item);
-        await prisma.projectImage.create({
-          data: {
-            projectId,
-            url,
-            alt: title,
-            order: orderBase++,
-          },
-        });
-      }
-    }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Kayıt hatası" };
   }
 
   revalidatePublic();
+  revalidatePath("/admin/portfolyo");
+  if (!id && projectId) {
+    redirect(`/admin/portfolyo/${projectId}`);
+  }
   redirect("/admin/portfolyo");
 }
 
@@ -433,17 +604,189 @@ export async function deleteProjectAction(formData: FormData) {
   }
   await prisma.project.delete({ where: { id } });
   revalidatePublic();
+  revalidatePath("/admin/portfolyo");
+}
+
+export async function uploadProjectImagesAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const projectId = String(formData.get("entityId") ?? "");
+  if (!projectId) return { error: "Proje bulunamadı." };
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) return { error: "Proje bulunamadı." };
+
+  const files = formData.getAll("files");
+  let orderBase = await prisma.projectImage.count({ where: { projectId } });
+  let uploaded = 0;
+  try {
+    for (const item of files) {
+      if (item instanceof File && item.size > 0) {
+        const url = await saveUploadedImage(item);
+        await prisma.projectImage.create({
+          data: {
+            projectId,
+            url,
+            alt: project.title,
+            order: orderBase++,
+          },
+        });
+        uploaded += 1;
+        if (!project.coverUrl && uploaded === 1) {
+          await prisma.project.update({
+            where: { id: projectId },
+            data: { coverUrl: url },
+          });
+        }
+      }
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${projectId}`);
+  return { ok: true, message: `${uploaded} görsel yüklendi` };
+}
+
+export async function uploadProjectCoverAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const projectId = String(formData.get("entityId") ?? "");
+  if (!projectId) return { error: "Proje bulunamadı." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Dosya seçin." };
+  }
+  try {
+    const url = await saveUploadedImage(file);
+    const prev = await prisma.project.findUnique({ where: { id: projectId } });
+    if (prev?.coverUrl) {
+      const inGallery = await prisma.projectImage.findFirst({
+        where: { projectId, url: prev.coverUrl },
+      });
+      if (!inGallery) await deleteUploadedFile(prev.coverUrl);
+    }
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { coverUrl: url },
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Yükleme hatası" };
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${projectId}`);
+  return { ok: true };
+}
+
+export async function setProjectCoverFromImageAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const projectId = String(formData.get("entityId") ?? "");
+  const imageId = String(formData.get("imageId") ?? "");
+  if (!projectId || !imageId) return;
+  const img = await prisma.projectImage.findFirst({
+    where: { id: imageId, projectId },
+  });
+  if (!img) return;
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { coverUrl: img.url },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${projectId}`);
+}
+
+export async function clearProjectCoverAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const projectId = String(formData.get("entityId") ?? "");
+  if (!projectId) return;
+  const prev = await prisma.project.findUnique({ where: { id: projectId } });
+  if (prev?.coverUrl) {
+    const inGallery = await prisma.projectImage.findFirst({
+      where: { projectId, url: prev.coverUrl },
+    });
+    if (!inGallery) await deleteUploadedFile(prev.coverUrl);
+  }
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { coverUrl: null },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${projectId}`);
 }
 
 export async function deleteProjectImageAction(formData: FormData) {
   await requirePermission("portfolio");
-  const id = String(formData.get("id") ?? "");
+  const id = String(formData.get("imageId") ?? formData.get("id") ?? "");
   if (!id) return;
   const img = await prisma.projectImage.findUnique({ where: { id } });
   if (!img) return;
+  const project = await prisma.project.findUnique({
+    where: { id: img.projectId },
+  });
   await deleteUploadedFile(img.url);
   await prisma.projectImage.delete({ where: { id } });
+  if (project?.coverUrl === img.url) {
+    const next = await prisma.projectImage.findFirst({
+      where: { projectId: img.projectId },
+      orderBy: { order: "asc" },
+    });
+    await prisma.project.update({
+      where: { id: img.projectId },
+      data: { coverUrl: next?.url ?? null },
+    });
+  }
   revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${img.projectId}`);
+}
+
+export async function moveProjectImageAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const id = String(formData.get("imageId") ?? "");
+  const dir = String(formData.get("direction") ?? "");
+  if (!id || (dir !== "left" && dir !== "right")) return;
+  const img = await prisma.projectImage.findUnique({ where: { id } });
+  if (!img) return;
+  const siblings = await prisma.projectImage.findMany({
+    where: { projectId: img.projectId },
+    orderBy: { order: "asc" },
+  });
+  const idx = siblings.findIndex((s) => s.id === id);
+  const swapWith = dir === "left" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapWith < 0 || swapWith >= siblings.length) return;
+  const a = siblings[idx];
+  const b = siblings[swapWith];
+  await prisma.$transaction([
+    prisma.projectImage.update({
+      where: { id: a.id },
+      data: { order: b.order },
+    }),
+    prisma.projectImage.update({
+      where: { id: b.id },
+      data: { order: a.order },
+    }),
+  ]);
+  if (a.order === b.order) {
+    await prisma.projectImage.update({
+      where: { id: a.id },
+      data: { order: swapWith },
+    });
+    await prisma.projectImage.update({
+      where: { id: b.id },
+      data: { order: idx },
+    });
+  }
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${img.projectId}`);
+}
+
+export async function updateProjectImageAltAction(formData: FormData) {
+  await requirePermission("portfolio");
+  const id = String(formData.get("imageId") ?? "");
+  const alt = String(formData.get("alt") ?? "").trim();
+  if (!id) return;
+  const img = await prisma.projectImage.update({
+    where: { id },
+    data: { alt },
+  });
+  revalidatePublic();
+  revalidatePath(`/admin/portfolyo/${img.projectId}`);
 }
 
 // ---------- Settings ----------

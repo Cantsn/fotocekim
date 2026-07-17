@@ -1,10 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  saveServiceAction,
-  type ActionState,
-} from "@/lib/actions/admin";
+import { saveServiceAction, type ActionState } from "@/lib/actions/admin";
 import type { Service } from "@/lib/types";
 import { CheckField, Field, SubmitBar, fieldClass } from "./FormFields";
 
@@ -65,6 +62,14 @@ export function ServiceForm({ service }: { service?: Service }) {
           />
         </div>
       </div>
+
+      {!service && (
+        <div className="rounded-xl border border-border bg-muted-bg px-4 py-3 text-sm text-muted">
+          Kaydettikten sonra bu hizmete kapak ve galeri görselleri
+          ekleyebilirsiniz.
+        </div>
+      )}
+
       {state.error && (
         <p className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
           {state.error}

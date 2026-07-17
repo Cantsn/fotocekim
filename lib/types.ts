@@ -12,14 +12,23 @@ export type InquiryStatus =
   | "CONFIRMED"
   | "CANCELLED";
 
+export interface ServiceImage {
+  id: string;
+  url: string;
+  alt: string;
+  order: number;
+}
+
 export interface Service {
   id: string;
   slug: string;
   title: string;
   shortDesc: string;
   content: string;
+  coverUrl?: string;
   order: number;
   published: boolean;
+  images: ServiceImage[];
 }
 
 export type DiscountType = "NONE" | "PERCENT" | "AMOUNT";

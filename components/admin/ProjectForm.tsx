@@ -1,15 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  deleteProjectImageAction,
-  saveProjectAction,
-  type ActionState,
-} from "@/lib/actions/admin";
+import { saveProjectAction, type ActionState } from "@/lib/actions/admin";
 import type { Project } from "@/lib/types";
 import { CATEGORY_OPTIONS } from "@/lib/constants";
 import { CheckField, Field, SubmitBar, fieldClass } from "./FormFields";
-import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
 
 const initial: ActionState = {};
 
@@ -17,11 +12,20 @@ export function ProjectForm({ project }: { project?: Project }) {
   const [state, action, pending] = useActionState(saveProjectAction, initial);
 
   return (
-    <form action={action} className="mx-auto max-w-3xl space-y-4" encType="multipart/form-data">
+    <form
+      action={action}
+      className="mx-auto max-w-3xl space-y-4"
+      encType="multipart/form-data"
+    >
       {project && <input type="hidden" name="id" value={project.id} />}
 
       <Field label="Başlık *">
-        <input name="title" required defaultValue={project?.title} className={fieldClass} />
+        <input
+          name="title"
+          required
+          defaultValue={project?.title}
+          className={fieldClass}
+        />
       </Field>
       <Field label="Slug (URL)">
         <input
@@ -101,56 +105,10 @@ export function ProjectForm({ project }: { project?: Project }) {
         />
       </Field>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Kapak fotoğrafı">
-          <input
-            name="cover"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className={fieldClass}
-          />
-          {project?.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={project.coverUrl}
-              alt="Kapak"
-              className="mt-2 h-32 w-full rounded-xl object-cover"
-            />
-          ) : (
-            <div className="mt-2 overflow-hidden rounded-xl">
-              <MediaPlaceholder label="Kapak yok" aspect="video" />
-            </div>
-          )}
-        </Field>
-        <Field label="Galeri fotoğrafları (çoklu)">
-          <input
-            name="gallery"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            multiple
-            className={fieldClass}
-          />
-          <p className="text-xs text-muted">Birden fazla seçebilirsiniz.</p>
-        </Field>
-      </div>
-
-      {project && project.images.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs text-muted">Mevcut galeri</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {project.images.map((img) => (
-              <div key={img.id} className="overflow-hidden rounded-xl border border-border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.url} alt={img.alt} className="aspect-square w-full object-cover" />
-                <form action={deleteProjectImageAction} className="p-2">
-                  <input type="hidden" name="id" value={img.id} />
-                  <button type="submit" className="text-xs text-danger hover:underline">
-                    Sil
-                  </button>
-                </form>
-              </div>
-            ))}
-          </div>
+      {!project && (
+        <div className="rounded-xl border border-border bg-muted-bg px-4 py-3 text-sm text-muted">
+          Kaydettikten sonra düzenleme sayfasında kapak ve galeri fotoğraflarını
+          yükleyebilir, sıralayabilir ve silebilirsiniz.
         </div>
       )}
 

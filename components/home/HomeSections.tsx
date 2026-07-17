@@ -96,7 +96,16 @@ export async function ServicesSection() {
                 href={`/hizmetler/${s.slug}`}
                 className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/50"
               >
-                <MediaPlaceholder label={s.title} aspect="video" icon={false} />
+                {s.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={s.coverUrl}
+                    alt={s.title}
+                    className="aspect-video w-full object-cover transition group-hover:opacity-95"
+                  />
+                ) : (
+                  <MediaPlaceholder label={s.title} aspect="video" icon={false} />
+                )}
                 <div className="p-4 sm:p-5">
                   <div className="mb-2 flex items-center gap-2 text-accent">
                     <Icon className="h-4 w-4 shrink-0" />

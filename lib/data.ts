@@ -183,17 +183,22 @@ function mapService(s: {
   title: string;
   shortDesc: string;
   content: string;
+  coverUrl?: string | null;
   order: number;
   published: boolean;
+  images?: { id: string; url: string; alt: string; order: number }[];
 }): Service {
+  const images = mapImages(s.images ?? []);
   return {
     id: s.id,
     slug: s.slug,
     title: s.title,
     shortDesc: s.shortDesc,
     content: s.content,
+    coverUrl: s.coverUrl ?? images[0]?.url,
     order: s.order,
     published: s.published,
+    images,
   };
 }
 
@@ -232,24 +237,32 @@ export async function getPublishedServices(): Promise<Service[]> {
   const rows = await prisma.service.findMany({
     where: { published: true },
     orderBy: { order: "asc" },
+    include: { images: { orderBy: { order: "asc" } } },
   });
   return rows.map(mapService);
 }
 
 export async function getAllServices(): Promise<Service[]> {
-  const rows = await prisma.service.findMany({ orderBy: { order: "asc" } });
+  const rows = await prisma.service.findMany({
+    orderBy: { order: "asc" },
+    include: { images: { orderBy: { order: "asc" } } },
+  });
   return rows.map(mapService);
 }
 
 export async function getServiceBySlug(slug: string): Promise<Service | null> {
   const row = await prisma.service.findFirst({
     where: { slug, published: true },
+    include: { images: { orderBy: { order: "asc" } } },
   });
   return row ? mapService(row) : null;
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const row = await prisma.service.findUnique({ where: { id } });
+  const row = await prisma.service.findUnique({
+    where: { id },
+    include: { images: { orderBy: { order: "asc" } } },
+  });
   return row ? mapService(row) : null;
 }
 
