@@ -13,7 +13,8 @@ data
 .idea
 coverage
 npm-debug.log*
-Dockerfile*
-docker-compose*.yml
-.dockerignore
 README.md
+# Keep Dockerfile / compose in repo; exclude heavy/local-only paths
+**/*.tsbuildinfo
+.turbo
+.cache

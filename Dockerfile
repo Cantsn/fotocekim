@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1
-# Coolify / tek-container: Next.js + SQLite
+# Coolify / tek-container: Next.js standalone + SQLite (slim image)
 
 # --- deps ---
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
-# Coolify ARG enjekte edebilir; npm ci devDependencies da kursun
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -14,10 +13,9 @@ RUN apt-get update -y \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-# postinstall / prisma generate için şema (ignore-scripts ile yine de güvenli)
 COPY prisma ./prisma
 
-# --ignore-scripts: schema yokken / production NODE_ENV ile postinstall kırılmasın
+# --ignore-scripts: Coolify / production NODE_ENV ile postinstall kırılmasın
 RUN npm ci --ignore-scripts \
   && npx prisma generate
 
@@ -25,7 +23,6 @@ RUN npm ci --ignore-scripts \
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
-# Coolify build-arg'ları (NEXT_PUBLIC_* build zamanında gerekir)
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_SITE_NAME=FotoCekim
 ARG NEXT_PUBLIC_WHATSAPP=905000000000
@@ -39,7 +36,6 @@ ENV ADMIN_EMAIL=$ADMIN_EMAIL
 ENV ADMIN_PASSWORD=$ADMIN_PASSWORD
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Build sırasında geçici SQLite
 ENV DATABASE_URL="file:./build.db"
 
 RUN apt-get update -y \
@@ -56,7 +52,22 @@ RUN npx prisma generate \
   && npx tsx prisma/seed.ts \
   && npx next build
 
-# --- runner ---
+# Runtime-only tools (prisma CLI + seed) — full node_modules yok
+FROM node:22-bookworm-slim AS tools
+WORKDIR /tools
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+# Sadece entrypoint seed/db için gereken paketler
+RUN npm init -y >/dev/null 2>&1 \
+  && npm install --omit=dev --no-fund \
+    prisma@6.19.3 \
+    @prisma/client@6.19.3 \
+    tsx@4.23.1 \
+    bcryptjs@3.0.3 \
+  && npx prisma generate
+
+# --- runner (slim) ---
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 
@@ -77,25 +88,29 @@ ENV NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME
 ENV NEXT_PUBLIC_WHATSAPP=$NEXT_PUBLIC_WHATSAPP
 ENV ADMIN_EMAIL=$ADMIN_EMAIL
 ENV ADMIN_PASSWORD=$ADMIN_PASSWORD
+# seed için tools node_modules
+ENV NODE_PATH=/tools/node_modules
+ENV PATH="/tools/node_modules/.bin:${PATH}"
 
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
-  && useradd --system --uid 1001 --gid nodejs nextjs
+  && useradd --system --uid 1001 --gid nodejs nextjs \
+  && mkdir -p /data /data/uploads \
+  && chown -R nextjs:nodejs /data
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/lib ./lib
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+# Standalone app (traced deps only — no full monorepo node_modules)
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# seed imports ../lib/permissions
+COPY --from=builder --chown=nextjs:nodejs /app/lib/permissions.ts ./lib/permissions.ts
+COPY --from=tools --chown=nextjs:nodejs /tools /tools
 
-RUN chmod +x /app/docker-entrypoint.sh \
-  && mkdir -p /data \
-  && chown -R nextjs:nodejs /app /data
+COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 USER nextjs
 EXPOSE 3000
