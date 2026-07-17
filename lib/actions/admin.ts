@@ -1095,20 +1095,30 @@ export async function deleteTeamMemberAction(formData: FormData) {
   revalidatePath("/admin/ekip");
 }
 
-export async function updateInquiryStatusAction(formData: FormData) {
+export async function updateInquiryStatusAction(
+  formData: FormData,
+): Promise<ActionState> {
   await requirePermission("inquiries");
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "READ");
-  if (!id) return;
+  if (!id) return { error: "Kayıt bulunamadı." };
+
+  const allowed = ["NEW", "READ", "QUOTED", "CONFIRMED", "CANCELLED"];
+  if (!allowed.includes(status)) return { error: "Geçersiz durum." };
 
   const row = await prisma.inquiry.findUnique({ where: { id } });
-  if (!row) return;
+  if (!row) return { error: "Kayıt bulunamadı." };
 
   if (status === "CONFIRMED") {
     if (row.eventDate && row.eventTime) {
       const { isSlotAvailable } = await import("@/lib/availability");
       const free = await isSlotAvailable(row.eventDate, row.eventTime, id);
-      if (!free) return;
+      if (!free) {
+        return {
+          error:
+            "Bu tarih/saat dolu. Onay için önce başka bir slot seçin veya çakışmayı kaldırın.",
+        };
+      }
     }
   }
 
@@ -1139,9 +1149,11 @@ export async function updateInquiryStatusAction(formData: FormData) {
     where: { id },
     data: { status, googleEventId },
   });
+  revalidatePath("/admin");
   revalidatePath("/admin/randevular");
   revalidatePath("/admin/takvim");
   revalidatePath("/randevu");
+  return { ok: true, message: "Durum güncellendi." };
 }
 
 /** Ensure owner exists — used by seed */

@@ -1,12 +1,19 @@
 import Link from "next/link";
-import { CalendarDays, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Mail,
+  Phone,
+  Plus,
+  Trash2,
+  User,
+} from "lucide-react";
 import { guardAdminPage } from "@/lib/admin-guard";
 import { getInquiries } from "@/lib/data";
-import { updateInquiryStatusAction } from "@/lib/actions/admin";
 import {
   createManualAppointmentAction,
   deleteInquiryAction,
 } from "@/lib/actions/availability";
+import { InquiryStatusForm } from "@/components/admin/InquiryStatusForm";
 import { formatDateDot, formatDateTimeDot } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +24,14 @@ const statusLabel: Record<string, string> = {
   QUOTED: "Teklif",
   CONFIRMED: "Onay",
   CANCELLED: "İptal",
+};
+
+const statusStyle: Record<string, string> = {
+  NEW: "bg-accent/15 text-accent",
+  READ: "bg-muted-bg text-muted",
+  QUOTED: "bg-amber-500/15 text-amber-700",
+  CONFIRMED: "bg-success/15 text-success",
+  CANCELLED: "bg-danger/10 text-danger",
 };
 
 export default async function AdminRandevularPage() {
@@ -148,8 +163,8 @@ export default async function AdminRandevularPage() {
         </form>
       </div>
 
-      {/* Liste — mobil kart + desktop tablo */}
-      <div className="space-y-3 md:hidden">
+      {/* Liste — kart düzeni (mobil + masaüstü tutarlı) */}
+      <div className="space-y-3">
         {inquiries.length === 0 && (
           <p className="rounded-2xl border border-border p-6 text-center text-sm text-muted">
             Kayıt yok
@@ -158,125 +173,112 @@ export default async function AdminRandevularPage() {
         {inquiries.map((i) => (
           <div
             key={i.id}
-            className="rounded-2xl border border-border bg-card p-4 text-sm"
+            className="rounded-2xl border border-border bg-card p-4 sm:p-5"
           >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-foreground">{i.name}</p>
-                <p className="text-xs text-muted">{i.phone}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="flex items-center gap-1.5 font-medium text-foreground">
+                  <User className="h-4 w-4 shrink-0 text-accent" />
+                  {i.name}
+                </p>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    statusStyle[i.status] ?? statusStyle.READ
+                  }`}
+                >
+                  {statusLabel[i.status] ?? i.status}
+                </span>
+                {i.status === "CONFIRMED" && (
+                  <span className="text-[10px] text-success">Slot kilitli</span>
+                )}
               </div>
               <form action={deleteInquiryAction}>
                 <input type="hidden" name="id" value={i.id} />
                 <button
                   type="submit"
-                  className="rounded-full border border-border p-2 text-danger"
-                  aria-label="Sil"
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-danger hover:bg-danger/5"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Sil
                 </button>
               </form>
             </div>
-            <p className="mt-2 text-foreground">
-              {formatDateTimeDot(i.eventDate, i.eventTime)}
-            </p>
-            <p className="mt-1 line-clamp-2 text-xs text-muted">{i.message}</p>
-            <form
-              action={updateInquiryStatusAction}
-              className="mt-3 flex items-center gap-2"
-            >
-              <input type="hidden" name="id" value={i.id} />
-              <select
-                name="status"
-                defaultValue={i.status}
-                className="flex-1 rounded-lg border border-border bg-muted-bg px-2 py-1.5 text-xs"
-              >
-                {Object.entries(statusLabel).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <button type="submit" className="text-xs text-accent">
-                Kaydet
-              </button>
-            </form>
-            <p className="mt-2 text-[10px] text-muted">
-              Talep: {formatDateDot(i.createdAt)}
-            </p>
+
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-muted-bg/80 px-3 py-2">
+                <dt className="text-[10px] tracking-wide text-muted uppercase">
+                  Çekim tarihi
+                </dt>
+                <dd className="mt-0.5 font-medium text-foreground">
+                  {i.eventDate
+                    ? formatDateTimeDot(i.eventDate, i.eventTime)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-muted-bg/80 px-3 py-2">
+                <dt className="flex items-center gap-1 text-[10px] tracking-wide text-muted uppercase">
+                  <Phone className="h-3 w-3" />
+                  Telefon
+                </dt>
+                <dd className="mt-0.5 font-medium text-foreground">
+                  {i.phone ? (
+                    <a
+                      href={`tel:${i.phone.replace(/\s/g, "")}`}
+                      className="hover:text-accent"
+                    >
+                      {i.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-muted-bg/80 px-3 py-2">
+                <dt className="flex items-center gap-1 text-[10px] tracking-wide text-muted uppercase">
+                  <Mail className="h-3 w-3" />
+                  E-posta
+                </dt>
+                <dd className="mt-0.5 truncate font-medium text-foreground">
+                  {i.email ? (
+                    <a
+                      href={`mailto:${i.email}`}
+                      className="hover:text-accent"
+                    >
+                      {i.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-muted-bg/80 px-3 py-2">
+                <dt className="text-[10px] tracking-wide text-muted uppercase">
+                  Talep zamanı
+                </dt>
+                <dd className="mt-0.5 font-medium text-foreground">
+                  {formatDateDot(i.createdAt)}
+                </dd>
+              </div>
+            </dl>
+
+            {(i.location || i.message) && (
+              <div className="mt-2 space-y-1 text-xs text-muted">
+                {i.location && <p>Lokasyon: {i.location}</p>}
+                {i.message && (
+                  <p className="line-clamp-3 text-muted">{i.message}</p>
+                )}
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+              <p className="text-[11px] text-muted">
+                Tip: {i.type}
+                {i.source ? ` · ${i.source}` : ""}
+              </p>
+              <InquiryStatusForm id={i.id} status={i.status} compact />
+            </div>
           </div>
         ))}
-      </div>
-
-      <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-muted-bg text-xs tracking-wide text-muted uppercase">
-            <tr>
-              <th className="px-4 py-3">Müşteri</th>
-              <th className="px-4 py-3">Slot</th>
-              <th className="px-4 py-3">Durum</th>
-              <th className="px-4 py-3">Talep</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {inquiries.map((i) => (
-              <tr key={i.id} className="border-t border-border align-top">
-                <td className="px-4 py-3">
-                  <p className="text-foreground">{i.name}</p>
-                  <p className="text-xs text-muted">{i.phone}</p>
-                  <p className="mt-1 max-w-xs text-xs text-muted line-clamp-2">
-                    {i.message}
-                  </p>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {formatDateTimeDot(i.eventDate, i.eventTime)}
-                  {i.status === "CONFIRMED" && (
-                    <span className="mt-1 block text-[10px] text-success">
-                      Kilitli
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <form
-                    action={updateInquiryStatusAction}
-                    className="flex items-center gap-2"
-                  >
-                    <input type="hidden" name="id" value={i.id} />
-                    <select
-                      name="status"
-                      defaultValue={i.status}
-                      className="rounded-lg border border-border bg-muted-bg px-2 py-1 text-xs"
-                    >
-                      {Object.entries(statusLabel).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" className="text-xs text-accent">
-                      Kaydet
-                    </button>
-                  </form>
-                </td>
-                <td className="px-4 py-3 text-muted whitespace-nowrap">
-                  {formatDateDot(i.createdAt)}
-                </td>
-                <td className="px-4 py-3">
-                  <form action={deleteInquiryAction}>
-                    <input type="hidden" name="id" value={i.id} />
-                    <button
-                      type="submit"
-                      className="inline-flex items-center gap-1 text-xs text-danger hover:underline"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Sil
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
