@@ -24,7 +24,8 @@ type Summary = {
   meta: DayMeta;
 };
 
-const WEEK = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+const WEEK = ["P", "S", "Ç", "P", "C", "C", "P"];
+const WEEK_FULL = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
 export function BookingDatePicker({
   eventDate,
@@ -32,12 +33,15 @@ export function BookingDatePicker({
   onDateChange,
   onTimeChange,
   requireSlot,
+  compact = false,
 }: {
   eventDate: string;
   eventTime: string;
   onDateChange: (d: string) => void;
   onTimeChange: (t: string) => void;
   requireSlot?: boolean;
+  /** Dar sütun (hizmet teklif paneli) — her zaman dikey */
+  compact?: boolean;
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -118,63 +122,108 @@ export function BookingDatePicker({
     year: "numeric",
   });
 
+  const weekLabels = compact ? WEEK : WEEK_FULL;
+
   return (
-    <div className="space-y-4 rounded-2xl border border-border bg-card p-3 sm:p-5">
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted sm:gap-4">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" /> Müsait
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-rose-400" /> Dolu / kapalı
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-amber-500" /> Tatil
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-violet-500" /> Özel gün
-        </span>
-        {requireSlot && (
-          <span className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-accent">
-            *
-          </span>
+    <div
+      className={cn(
+        "min-w-0 space-y-3 rounded-2xl border border-border bg-card",
+        compact ? "p-2.5 sm:p-3" : "space-y-4 p-3 sm:p-5",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted",
+          compact ? "text-[10px]" : "text-[11px] sm:gap-4",
         )}
+      >
+        <span className="inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 sm:h-2 sm:w-2" />{" "}
+          Müsait
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-400 sm:h-2 sm:w-2" />{" "}
+          Dolu
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 sm:h-2 sm:w-2" />{" "}
+          Tatil
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-violet-500 sm:h-2 sm:w-2" />{" "}
+          Özel
+        </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
+      {/* compact: her zaman dikey; normal: geniş ekranda yan yana */}
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          compact ? "grid-cols-1" : "grid-cols-1 xl:grid-cols-[1.1fr_1fr]",
+        )}
+      >
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center justify-between gap-1">
             <button
               type="button"
               onClick={() => shift(-1)}
-              className="h-9 min-w-9 rounded-full border border-border px-3 text-sm"
+              className={cn(
+                "shrink-0 rounded-full border border-border",
+                compact ? "h-8 w-8 text-sm" : "h-9 min-w-9 px-3 text-sm",
+              )}
+              aria-label="Önceki ay"
             >
               ←
             </button>
-            <p className="truncate text-center font-serif text-base capitalize text-foreground sm:text-lg">
+            <p
+              className={cn(
+                "min-w-0 truncate text-center font-serif capitalize text-foreground",
+                compact ? "text-sm" : "text-base sm:text-lg",
+              )}
+            >
               {monthLabel}
               {loadingMonth ? " …" : ""}
             </p>
             <button
               type="button"
               onClick={() => shift(1)}
-              className="h-9 min-w-9 rounded-full border border-border px-3 text-sm"
+              className={cn(
+                "shrink-0 rounded-full border border-border",
+                compact ? "h-8 w-8 text-sm" : "h-9 min-w-9 px-3 text-sm",
+              )}
+              aria-label="Sonraki ay"
             >
               →
             </button>
           </div>
 
-          <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-muted sm:gap-1">
-            {WEEK.map((w) => (
-              <div key={w} className="py-1">
+          <div
+            className={cn(
+              "mb-1 grid grid-cols-7 text-center font-medium text-muted",
+              compact ? "gap-0.5 text-[9px]" : "gap-0.5 text-[10px] sm:gap-1",
+            )}
+          >
+            {weekLabels.map((w, i) => (
+              <div key={`${w}-${i}`} className="py-0.5">
                 {w}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+          <div
+            className={cn(
+              "grid grid-cols-7",
+              compact ? "gap-0.5" : "gap-0.5 sm:gap-1",
+            )}
+          >
             {cells.map((day, idx) => {
               if (day == null)
-                return <div key={`e-${idx}`} className="aspect-square" />;
+                return (
+                  <div
+                    key={`e-${idx}`}
+                    className={compact ? "aspect-square min-h-0" : "aspect-square"}
+                  />
+                );
               const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const sum = summaries[dateStr];
               const outOfRange = dateStr < minDate || dateStr > maxDate;
@@ -182,7 +231,8 @@ export function BookingDatePicker({
               const meta = sum?.meta;
               const hasHoliday = Boolean(meta?.isHoliday);
               const hasSpecial = Boolean(meta?.isSpecial) && !hasHoliday;
-              const hasMark = hasHoliday || hasSpecial || Boolean(meta?.labels?.length);
+              const hasMark =
+                hasHoliday || hasSpecial || Boolean(meta?.labels?.length);
               const selectable =
                 !outOfRange && sum && !sum.fullyBlocked && sum.isWorkDay;
 
@@ -196,20 +246,23 @@ export function BookingDatePicker({
                     meta?.labels?.map((l) => l.title).join(" · ") || undefined
                   }
                   className={cn(
-                    "relative flex aspect-square flex-col items-center justify-center rounded-lg border text-xs font-medium transition sm:rounded-xl sm:text-sm",
+                    "relative flex aspect-square min-w-0 flex-col items-center justify-center border font-medium transition",
+                    compact
+                      ? "rounded-md text-[10px] leading-none"
+                      : "rounded-lg text-xs sm:rounded-xl sm:text-sm",
                     selected && "border-accent bg-accent text-white shadow",
                     !selected &&
                       selectable &&
                       !hasMark &&
-                      "border-emerald-500/35 bg-emerald-500/10 text-foreground active:scale-95",
+                      "border-emerald-500/35 bg-emerald-500/10 text-foreground",
                     !selected &&
                       selectable &&
                       hasHoliday &&
-                      "border-amber-500/50 bg-amber-500/15 text-foreground active:scale-95",
+                      "border-amber-500/50 bg-amber-500/15 text-foreground",
                     !selected &&
                       selectable &&
                       hasSpecial &&
-                      "border-violet-500/45 bg-violet-500/12 text-foreground active:scale-95",
+                      "border-violet-500/45 bg-violet-500/12 text-foreground",
                     !selected &&
                       !selectable &&
                       "cursor-not-allowed border-border bg-muted-bg text-muted opacity-55",
@@ -219,7 +272,8 @@ export function BookingDatePicker({
                   {hasMark && (
                     <span
                       className={cn(
-                        "mt-0.5 h-1 w-1 rounded-full sm:h-1.5 sm:w-1.5",
+                        "mt-0.5 rounded-full",
+                        compact ? "h-0.5 w-0.5" : "h-1 w-1 sm:h-1.5 sm:w-1.5",
                         hasHoliday && "bg-amber-500",
                         hasSpecial && "bg-violet-500",
                         selected && "bg-white",
@@ -232,20 +286,36 @@ export function BookingDatePicker({
           </div>
         </div>
 
-        <div className="min-h-[180px] rounded-xl border border-border bg-muted-bg/40 p-3 sm:p-4">
+        <div
+          className={cn(
+            "min-w-0 rounded-xl border border-border bg-muted-bg/40",
+            compact ? "p-2.5" : "min-h-[140px] p-3 sm:p-4",
+          )}
+        >
+          {!eventDate && (
+            <p className={cn("text-muted", compact ? "text-[11px]" : "text-xs")}>
+              Takvimden gün seçin
+            </p>
+          )}
+
           {eventDate && (
             <>
-              <p className="font-serif text-base text-foreground sm:text-lg">
+              <p
+                className={cn(
+                  "font-serif text-foreground",
+                  compact ? "text-sm" : "text-base sm:text-lg",
+                )}
+              >
                 {formatDateDot(eventDate)}
               </p>
 
               {dayMeta && dayMeta.labels.length > 0 && (
-                <div className="mt-2 space-y-1.5">
+                <div className="mt-2 space-y-1">
                   {dayMeta.labels.map((l) => (
                     <div
                       key={`${l.type}-${l.title}`}
                       className={cn(
-                        "rounded-lg border px-2.5 py-1.5 text-xs",
+                        "rounded-lg border px-2 py-1 text-[11px] leading-snug",
                         l.type === "HOLIDAY" || l.type === "CLOSED"
                           ? "border-amber-500/40 bg-amber-500/10 text-amber-950"
                           : "border-violet-500/40 bg-violet-500/10 text-violet-950",
@@ -270,7 +340,14 @@ export function BookingDatePicker({
                 </div>
               )}
 
-              <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2">
+              <div
+                className={cn(
+                  "mt-2 grid min-w-0",
+                  compact
+                    ? "grid-cols-3 gap-1 sm:grid-cols-4"
+                    : "grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2",
+                )}
+              >
                 {loadingSlots && (
                   <p className="col-span-full text-xs text-muted">…</p>
                 )}
@@ -283,7 +360,10 @@ export function BookingDatePicker({
                       disabled={!s.available}
                       onClick={() => onTimeChange(s.time)}
                       className={cn(
-                        "rounded-lg border px-1 py-2 text-xs font-medium sm:rounded-xl sm:px-2 sm:text-sm",
+                        "min-w-0 border font-medium",
+                        compact
+                          ? "rounded-md px-0.5 py-1.5 text-[10px]"
+                          : "rounded-lg px-1 py-2 text-xs sm:rounded-xl sm:px-2 sm:text-sm",
                         s.available &&
                           !sel &&
                           "border-emerald-500/40 bg-card text-foreground",
@@ -300,7 +380,12 @@ export function BookingDatePicker({
                 })}
               </div>
               {eventTime && (
-                <p className="mt-3 text-sm font-medium text-foreground">
+                <p
+                  className={cn(
+                    "mt-2 font-medium text-foreground",
+                    compact ? "text-xs" : "text-sm",
+                  )}
+                >
                   {formatDateDot(eventDate)} · {eventTime}
                 </p>
               )}

@@ -43,24 +43,29 @@ export default async function HizmetDetailPage({ params }: Props) {
         <MediaPlaceholder
           label={`${service.title} kapak görseli`}
           aspect="wide"
-          className="min-h-[42vh]"
+          className="min-h-[36vh] sm:min-h-[42vh]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-        <Container className="absolute inset-x-0 bottom-0 pb-10">
+        <Container className="absolute inset-x-0 bottom-0 pb-8 sm:pb-10">
           <p className="text-xs tracking-[0.2em] text-accent uppercase">Hizmet</p>
-          <h1 className="mt-2 font-serif text-4xl text-foreground sm:text-5xl">
+          <h1 className="mt-2 font-serif text-3xl text-foreground sm:text-4xl md:text-5xl">
             {service.title}
           </h1>
-          <p className="mt-3 max-w-xl text-muted">{service.shortDesc}</p>
+          <p className="mt-2 max-w-xl text-sm text-muted sm:mt-3 sm:text-base">
+            {service.shortDesc}
+          </p>
         </Container>
       </div>
 
-      <Container className="py-14 md:py-20">
-        <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr]">
-          <article className="space-y-5">
+      <Container className="py-10 sm:py-14 md:py-20">
+        {/* İçerik + form: dar ekranda alt alta; genişte form yan panel */}
+        <div className="grid min-w-0 gap-10 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,22rem)] xl:items-start xl:gap-12">
+          <article className="min-w-0 space-y-5">
             {paragraphs.map((block, i) => {
               if (block.startsWith("- ")) {
-                const items = block.split("\n").filter((l) => l.startsWith("- "));
+                const items = block
+                  .split("\n")
+                  .filter((l) => l.startsWith("- "));
                 return (
                   <ul key={i} className="space-y-2">
                     {items.map((item) => (
@@ -100,14 +105,22 @@ export default async function HizmetDetailPage({ params }: Props) {
             </div>
           </article>
 
-          <aside className="h-fit rounded-2xl border border-border bg-card p-6 lg:sticky lg:top-24">
-            <h2 className="font-serif text-2xl text-foreground">Bu hizmet için teklif al</h2>
-            <p className="mt-2 mb-6 text-sm text-muted">
+          <aside className="min-w-0 w-full max-w-full rounded-2xl border border-border bg-card p-4 sm:p-5 xl:sticky xl:top-24 xl:max-w-[22rem]">
+            <h2 className="font-serif text-xl text-foreground sm:text-2xl">
+              Bu hizmet için teklif al
+            </h2>
+            <p className="mt-2 mb-4 text-sm text-muted">
               Tarih ve beklentilerinizi yazın; size dönüş yapalım.
             </p>
-            <InquiryForm source={`service:${service.slug}`} compact />
-            <div className="mt-6 border-t border-border pt-6">
-              <ButtonLink href="/paketler" variant="secondary" className="w-full">
+            <div className="min-w-0 overflow-x-hidden">
+              <InquiryForm source={`service:${service.slug}`} compact />
+            </div>
+            <div className="mt-5 border-t border-border pt-5">
+              <ButtonLink
+                href="/paketler"
+                variant="secondary"
+                className="w-full"
+              >
                 Paketleri gör
               </ButtonLink>
               <p className="mt-4 text-center text-xs text-muted">

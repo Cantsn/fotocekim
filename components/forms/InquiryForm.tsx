@@ -255,6 +255,7 @@ export function InquiryForm({
         onDateChange={setEventDate}
         onTimeChange={setEventTime}
         requireSlot={requireSlot}
+        compact={compact}
       />
 
       <div>
