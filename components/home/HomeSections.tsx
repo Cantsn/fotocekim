@@ -307,9 +307,9 @@ export async function CtaBand() {
               </ButtonLink>
               <ButtonLink
                 href="/iletisim"
-                variant="secondary"
+                variant="ghost"
                 size="lg"
-                className="w-full border-white/25 bg-transparent text-[#faf7f2] hover:border-[#c4a574] hover:text-[#c4a574] sm:w-auto"
+                className="w-full border border-white/30 bg-transparent !text-[#faf7f2] hover:border-[#c4a574] hover:!text-[#e8d5b0] sm:w-auto"
               >
                 {t.cta.secondary}
               </ButtonLink>
