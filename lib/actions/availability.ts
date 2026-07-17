@@ -109,7 +109,7 @@ export async function deleteSpecialDayAction(formData: FormData) {
 /** Admin: manuel randevu oluştur (bireysel / telefon) */
 export async function createManualAppointmentAction(formData: FormData) {
   await requirePermission("inquiries");
-  const name = String(formData.get("name") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
   const phone = String(formData.get("phone") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim() || null;
   const type = String(formData.get("type") ?? "OTHER");
@@ -121,8 +121,10 @@ export async function createManualAppointmentAction(formData: FormData) {
     String(formData.get("message") ?? "").trim() || "Manuel randevu";
   const status = String(formData.get("status") ?? "CONFIRMED");
   const { isSlotAvailable } = await import("@/lib/availability");
+  const { validateContactFields } = await import("@/lib/validation");
 
   if (!name || !phone || !eventDate || !eventTime) return;
+  if (validateContactFields({ name, phone, email: email || undefined })) return;
 
   if (status === "CONFIRMED") {
     const free = await isSlotAvailable(eventDate, eventTime);

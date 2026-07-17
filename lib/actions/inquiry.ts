@@ -3,6 +3,13 @@
 import { addInquiry } from "@/lib/data";
 import type { InquiryType } from "@/lib/types";
 import { isSlotAvailable } from "@/lib/availability";
+import {
+  isValidEmail,
+  isValidPersonName,
+  isValidPhone,
+  normalizePhone,
+  validateContactFields,
+} from "@/lib/validation";
 
 export type InquiryState = {
   ok?: boolean;
@@ -26,9 +33,11 @@ export async function submitInquiryAction(
     return { ok: true };
   }
 
-  const name = String(formData.get("name") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim() || undefined;
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
+  const phoneRaw = String(formData.get("phone") ?? "").trim();
+  const phone = normalizePhone(phoneRaw);
+  const emailRaw = String(formData.get("email") ?? "").trim();
+  const email = emailRaw || undefined;
   const typeRaw = String(formData.get("type") ?? "OTHER");
   const eventDate = String(formData.get("eventDate") ?? "").trim() || undefined;
   const eventTime = String(formData.get("eventTime") ?? "").trim() || undefined;
@@ -38,12 +47,24 @@ export async function submitInquiryAction(
   const source = String(formData.get("source") ?? "contact").trim();
   const kvkk = formData.get("kvkk");
 
-  if (!name || name.length < 2) {
-    return { error: "Lütfen adınızı girin." };
+  const contactError = validateContactFields({ name, phone: phoneRaw, email });
+  if (contactError) return { error: contactError };
+
+  // normalize sonrası tekrar kontrol
+  if (!isValidPhone(phone) && !isValidPhone(phoneRaw)) {
+    return {
+      error: "Lütfen geçerli bir telefon girin (örn. 05XX XXX XX XX).",
+    };
   }
-  if (!phone || phone.length < 10) {
-    return { error: "Geçerli bir telefon numarası girin." };
+  if (!isValidPersonName(name)) {
+    return {
+      error: "Lütfen geçerli bir ad soyad girin (sadece harf).",
+    };
   }
+  if (email && !isValidEmail(email)) {
+    return { error: "Lütfen geçerli bir e-posta adresi girin." };
+  }
+
   if (!message || message.length < 10) {
     return { error: "Mesajınız en az 10 karakter olmalı." };
   }
@@ -51,7 +72,6 @@ export async function submitInquiryAction(
     return { error: "Devam etmek için KVKK metnini onaylamalısınız." };
   }
 
-  // Randevu kaynağında tarih + saat zorunlu
   const needsSlot = source === "randevu" || source.startsWith("service:");
   if (needsSlot) {
     if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
@@ -71,8 +91,7 @@ export async function submitInquiryAction(
     const free = await isSlotAvailable(eventDate, eventTime);
     if (!free) {
       return {
-        error:
-          "Seçtiğiniz tarih/saat dolu. Lütfen başka bir slot seçin.",
+        error: "Seçtiğiniz tarih/saat dolu. Lütfen başka bir slot seçin.",
       };
     }
   }
@@ -81,10 +100,15 @@ export async function submitInquiryAction(
     ? (typeRaw as InquiryType)
     : "OTHER";
 
+  // Kayıtta normalize telefon
+  const phoneToStore = isValidPhone(phoneRaw)
+    ? phoneRaw.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "")
+    : phone;
+
   try {
     await addInquiry({
       name,
-      phone,
+      phone: phoneToStore,
       email,
       type,
       eventDate,
