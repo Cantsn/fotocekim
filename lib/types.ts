@@ -127,3 +127,16 @@ export interface TeamUser {
   permissions: string[];
   createdAt: string;
 }
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  linkUrl: string;
+  linkLabel: string;
+  style: string;
+  active: boolean;
+  startsAt?: string;
+  endsAt?: string;
+  order: number;
+}

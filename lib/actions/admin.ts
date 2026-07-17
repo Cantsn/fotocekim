@@ -32,6 +32,87 @@ function parseFeatures(raw: string): string {
   return JSON.stringify(lines);
 }
 
+// ---------- Announcements ----------
+export async function saveAnnouncementAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const message = String(formData.get("message") ?? "").trim();
+  const linkUrl = String(formData.get("linkUrl") ?? "").trim();
+  const linkLabel = String(formData.get("linkLabel") ?? "").trim();
+  const style = String(formData.get("style") ?? "accent");
+  const order = Number(formData.get("order") ?? 0) || 0;
+  const active = parseBool(formData.get("active"));
+  const startsAt = String(formData.get("startsAt") ?? "").trim() || null;
+  const endsAt = String(formData.get("endsAt") ?? "").trim() || null;
+
+  if (!title) return { error: "Başlık gerekli." };
+
+  try {
+    if (id) {
+      await prisma.announcement.update({
+        where: { id },
+        data: {
+          title,
+          message,
+          linkUrl,
+          linkLabel,
+          style,
+          order,
+          active,
+          startsAt,
+          endsAt,
+        },
+      });
+    } else {
+      await prisma.announcement.create({
+        data: {
+          title,
+          message,
+          linkUrl,
+          linkLabel,
+          style,
+          order,
+          active,
+          startsAt,
+          endsAt,
+        },
+      });
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Kayıt hatası" };
+  }
+
+  revalidatePublic();
+  revalidatePath("/admin/duyurular");
+  redirect("/admin/duyurular");
+}
+
+export async function deleteAnnouncementAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (id) await prisma.announcement.delete({ where: { id } });
+  revalidatePublic();
+  revalidatePath("/admin/duyurular");
+}
+
+export async function toggleAnnouncementAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const row = await prisma.announcement.findUnique({ where: { id } });
+  if (!row) return;
+  await prisma.announcement.update({
+    where: { id },
+    data: { active: !row.active },
+  });
+  revalidatePublic();
+  revalidatePath("/admin/duyurular");
+}
+
 // ---------- Services ----------
 export async function saveServiceAction(
   _prev: ActionState,

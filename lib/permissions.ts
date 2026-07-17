@@ -84,6 +84,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     id: "content",
     label: "İçerik",
     items: [
+      { href: "/admin/duyurular", label: "Duyurular", permission: "settings" },
       { href: "/admin/portfolyo", label: "Portföy", permission: "portfolio" },
       { href: "/admin/hizmetler", label: "Hizmetler", permission: "services" },
       { href: "/admin/paketler", label: "Paketler", permission: "packages" },

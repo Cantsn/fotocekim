@@ -1,4 +1,5 @@
 import type {
+  Announcement,
   Faq,
   Inquiry,
   Package,
@@ -344,6 +345,61 @@ export async function addInquiry(
     source: row.source ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function mapAnnouncement(a: {
+  id: string;
+  title: string;
+  message: string;
+  linkUrl: string;
+  linkLabel: string;
+  style: string;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  order: number;
+}): Announcement {
+  return {
+    id: a.id,
+    title: a.title,
+    message: a.message,
+    linkUrl: a.linkUrl,
+    linkLabel: a.linkLabel,
+    style: a.style,
+    active: a.active,
+    startsAt: a.startsAt ?? undefined,
+    endsAt: a.endsAt ?? undefined,
+    order: a.order,
+  };
+}
+
+export async function getAllAnnouncements(): Promise<Announcement[]> {
+  const rows = await prisma.announcement.findMany({
+    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+  });
+  return rows.map(mapAnnouncement);
+}
+
+/** Ana sayfada gösterilecek aktif duyuru (varsa) */
+export async function getActiveAnnouncement(): Promise<Announcement | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await prisma.announcement.findMany({
+    where: { active: true },
+    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+  });
+  for (const a of rows) {
+    if (a.startsAt && a.startsAt > today) continue;
+    if (a.endsAt && a.endsAt < today) continue;
+    return mapAnnouncement(a);
+  }
+  return null;
+}
+
+export async function getAnnouncementById(
+  id: string,
+): Promise<Announcement | null> {
+  const row = await prisma.announcement.findUnique({ where: { id } });
+  return row ? mapAnnouncement(row) : null;
 }
 
 export async function getTeamUsers(): Promise<TeamUser[]> {

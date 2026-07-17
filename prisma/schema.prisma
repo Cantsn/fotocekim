@@ -59,6 +59,24 @@ model SiteSettings {
   googleCalEmail        String  @default("")
 }
 
+/// Ana sayfa duyuru / kampanya bandı
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  message     String    @default("")
+  linkUrl     String    @default("")
+  linkLabel   String    @default("")
+  /// accent | dark | soft
+  style       String    @default("accent")
+  active      Boolean   @default(false)
+  /// Opsiyonel yayın aralığı (YYYY-MM-DD)
+  startsAt    String?
+  endsAt      String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
 model Service {
   id        String   @id @default(cuid())
   slug      String   @unique
