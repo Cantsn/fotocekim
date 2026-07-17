@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import {
   categoryLabel,
-  formatPrice,
   getFeaturedProjects,
   getPublishedPackages,
   getPublishedServices,
@@ -22,7 +21,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ButtonLink } from "@/components/ui/Button";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
 import { HomeInteractive } from "@/components/home/HomeInteractive";
-import { cn } from "@/lib/utils";
+import { PackageCard } from "@/components/packages/PackageCard";
 
 export async function HeroSection() {
   const [settings, t] = await Promise.all([getSiteSettings(), getDictionary()]);
@@ -198,46 +197,15 @@ export async function PackagesPreviewSection() {
           }
           align="center"
         />
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-3">
           {list.map((pkg) => (
-            <div
+            <PackageCard
               key={pkg.id}
-              className={cn(
-                "flex flex-col rounded-2xl border bg-card p-5 sm:p-7",
-                pkg.highlight
-                  ? "border-accent shadow-[0_0_0_1px_var(--accent)]"
-                  : "border-border",
-              )}
-            >
-              {pkg.highlight && (
-                <span className="mb-3 w-fit rounded-full bg-accent-soft px-3 py-1 text-xs text-accent">
-                  {t.packages.recommended}
-                </span>
-              )}
-              <h3 className="font-serif text-xl text-foreground sm:text-2xl">
-                {pkg.name}
-              </h3>
-              {settings.showPrices && (
-                <p className="mt-2 text-lg text-accent sm:mt-3">
-                  {formatPrice(pkg.priceFrom, pkg.currency)}
-                </p>
-              )}
-              <ul className="mt-5 flex-1 space-y-2 sm:mt-6">
-                {pkg.features.map((f) => (
-                  <li key={f} className="flex gap-2 text-sm text-muted">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <ButtonLink
-                href="/randevu"
-                variant={pkg.highlight ? "primary" : "secondary"}
-                className="mt-6 w-full sm:mt-8"
-              >
-                {t.packages.request}
-              </ButtonLink>
-            </div>
+              pkg={pkg}
+              showPrices={settings.showPrices}
+              recommendedLabel={t.packages.recommended}
+              ctaLabel={t.packages.request}
+            />
           ))}
         </div>
       </Container>

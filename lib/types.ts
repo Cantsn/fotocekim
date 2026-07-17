@@ -22,6 +22,8 @@ export interface Service {
   published: boolean;
 }
 
+export type DiscountType = "NONE" | "PERCENT" | "AMOUNT";
+
 export interface Package {
   id: string;
   slug: string;
@@ -29,6 +31,11 @@ export interface Package {
   description?: string;
   priceFrom: number | null;
   currency: string;
+  discountType: DiscountType;
+  discountValue: number | null;
+  /** İndirimli nihai fiyat (yoksa null) */
+  finalPrice: number | null;
+  hasDiscount: boolean;
   features: string[];
   highlight: boolean;
   order: number;

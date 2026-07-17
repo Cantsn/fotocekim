@@ -39,6 +39,50 @@ export const defaultSiteSettings: SiteSettings = {
 
 export const siteSettings = defaultSiteSettings;
 
+function computePackagePrice(
+  priceFrom: number | null,
+  discountType: string,
+  discountValue: number | null,
+): { finalPrice: number | null; hasDiscount: boolean; discountType: Package["discountType"]; discountValue: number | null } {
+  const type =
+    discountType === "PERCENT" || discountType === "AMOUNT"
+      ? discountType
+      : "NONE";
+  const value =
+    discountValue != null && Number.isFinite(discountValue)
+      ? Math.max(0, Math.floor(discountValue))
+      : null;
+
+  if (priceFrom == null || type === "NONE" || value == null || value <= 0) {
+    return {
+      finalPrice: priceFrom,
+      hasDiscount: false,
+      discountType: "NONE",
+      discountValue: null,
+    };
+  }
+
+  if (type === "PERCENT") {
+    const pct = Math.min(100, value);
+    const final = Math.round(priceFrom * (1 - pct / 100));
+    return {
+      finalPrice: Math.max(0, final),
+      hasDiscount: pct > 0 && final < priceFrom,
+      discountType: "PERCENT",
+      discountValue: pct,
+    };
+  }
+
+  // AMOUNT
+  const final = Math.max(0, priceFrom - value);
+  return {
+    finalPrice: final,
+    hasDiscount: value > 0 && final < priceFrom,
+    discountType: "AMOUNT",
+    discountValue: value,
+  };
+}
+
 function mapPackage(p: {
   id: string;
   slug: string;
@@ -46,6 +90,8 @@ function mapPackage(p: {
   description?: string;
   priceFrom: number | null;
   currency: string;
+  discountType?: string;
+  discountValue?: number | null;
   features: string;
   highlight: boolean;
   order: number;
@@ -57,6 +103,11 @@ function mapPackage(p: {
   } catch {
     features = [];
   }
+  const pricing = computePackagePrice(
+    p.priceFrom,
+    p.discountType ?? "NONE",
+    p.discountValue ?? null,
+  );
   return {
     id: p.id,
     slug: p.slug,
@@ -64,6 +115,10 @@ function mapPackage(p: {
     description: p.description ?? "",
     priceFrom: p.priceFrom,
     currency: p.currency,
+    discountType: pricing.discountType,
+    discountValue: pricing.discountValue,
+    finalPrice: pricing.finalPrice,
+    hasDiscount: pricing.hasDiscount,
     features,
     highlight: p.highlight,
     order: p.order,
@@ -429,15 +484,30 @@ export function categoryLabel(slug: string): string {
   return map[slug] ?? slug;
 }
 
+export function formatPriceAmount(
+  amount: number | null,
+  currency = "TRY",
+): string {
+  if (amount == null) return "Teklif üzerine";
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export function formatPrice(amount: number | null, currency = "TRY"): string {
   if (amount == null) return "Teklif üzerine";
-  return (
-    new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount) + "’den"
-  );
+  return formatPriceAmount(amount, currency) + "’den";
+}
+
+export function formatDiscountBadge(pkg: Package): string | null {
+  if (!pkg.hasDiscount || pkg.discountValue == null) return null;
+  if (pkg.discountType === "PERCENT") return `%${pkg.discountValue}`;
+  if (pkg.discountType === "AMOUNT") {
+    return `-${formatPriceAmount(pkg.discountValue, pkg.currency)}`;
+  }
+  return null;
 }
 
 export { CATEGORY_OPTIONS } from "./constants";

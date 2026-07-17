@@ -96,6 +96,10 @@ model Package {
   description String   @default("")
   priceFrom   Int?
   currency    String   @default("TRY")
+  /// NONE | PERCENT | AMOUNT
+  discountType  String  @default("NONE")
+  /// PERCENT: 1-100, AMOUNT: TL tutarı
+  discountValue Int?
   /// JSON array string
   features    String   @default("[]")
   highlight   Boolean  @default(false)

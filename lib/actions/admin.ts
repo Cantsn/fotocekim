@@ -170,6 +170,21 @@ export async function savePackageAction(
   const priceRaw = String(formData.get("priceFrom") ?? "").trim();
   const priceFrom = priceRaw === "" ? null : Number(priceRaw);
   const currency = String(formData.get("currency") ?? "TRY").trim() || "TRY";
+  const discountTypeRaw = String(formData.get("discountType") ?? "NONE");
+  const discountType =
+    discountTypeRaw === "PERCENT" || discountTypeRaw === "AMOUNT"
+      ? discountTypeRaw
+      : "NONE";
+  const discountValRaw = String(formData.get("discountValue") ?? "").trim();
+  let discountValue: number | null =
+    discountValRaw === "" ? null : Number(discountValRaw);
+  if (discountType === "NONE") discountValue = null;
+  if (discountType === "PERCENT" && discountValue != null) {
+    discountValue = Math.min(100, Math.max(0, Math.floor(discountValue)));
+  }
+  if (discountType === "AMOUNT" && discountValue != null) {
+    discountValue = Math.max(0, Math.floor(discountValue));
+  }
   const features = parseFeatures(String(formData.get("features") ?? ""));
   const highlight = parseBool(formData.get("highlight"));
   const order = Number(formData.get("order") ?? 0) || 0;
@@ -187,6 +202,11 @@ export async function savePackageAction(
           description,
           priceFrom: Number.isFinite(priceFrom as number) ? priceFrom : null,
           currency,
+          discountType,
+          discountValue:
+            discountValue != null && Number.isFinite(discountValue)
+              ? discountValue
+              : null,
           features,
           highlight,
           order,
@@ -203,6 +223,11 @@ export async function savePackageAction(
           description,
           priceFrom: Number.isFinite(priceFrom as number) ? priceFrom : null,
           currency,
+          discountType,
+          discountValue:
+            discountValue != null && Number.isFinite(discountValue)
+              ? discountValue
+              : null,
           features,
           highlight,
           order,

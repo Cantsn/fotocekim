@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   savePackageAction,
   type ActionState,
@@ -12,6 +12,11 @@ const initial: ActionState = {};
 
 export function PackageForm({ pkg }: { pkg?: Package }) {
   const [state, action, pending] = useActionState(savePackageAction, initial);
+  const [discountType, setDiscountType] = useState(
+    pkg?.discountType && pkg.discountType !== "NONE"
+      ? pkg.discountType
+      : "NONE",
+  );
 
   return (
     <form action={action} className="mx-auto max-w-2xl space-y-4">
@@ -36,12 +41,14 @@ export function PackageForm({ pkg }: { pkg?: Package }) {
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Başlangıç fiyatı (TL, boş = gizli)">
+        <Field label="Liste fiyatı / başlangıç (TL)">
           <input
             name="priceFrom"
             type="number"
+            min={0}
             defaultValue={pkg?.priceFrom ?? ""}
             className={fieldClass}
+            placeholder="28000"
           />
         </Field>
         <Field label="Para birimi">
@@ -52,6 +59,50 @@ export function PackageForm({ pkg }: { pkg?: Package }) {
           />
         </Field>
       </div>
+
+      <div className="rounded-2xl border border-border bg-muted-bg/40 p-4 space-y-3">
+        <p className="text-sm font-medium text-foreground">İndirim</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="İndirim tipi">
+            <select
+              name="discountType"
+              value={discountType}
+              onChange={(e) => setDiscountType(e.target.value as typeof discountType)}
+              className={fieldClass}
+            >
+              <option value="NONE">Yok</option>
+              <option value="PERCENT">Oran (%)</option>
+              <option value="AMOUNT">Tutar (TL)</option>
+            </select>
+          </Field>
+          <Field
+            label={
+              discountType === "PERCENT"
+                ? "İndirim oranı (%)"
+                : discountType === "AMOUNT"
+                  ? "İndirim tutarı (TL)"
+                  : "Değer"
+            }
+          >
+            <input
+              name="discountValue"
+              type="number"
+              min={0}
+              max={discountType === "PERCENT" ? 100 : undefined}
+              disabled={discountType === "NONE"}
+              defaultValue={
+                pkg?.discountType !== "NONE" ? (pkg?.discountValue ?? "") : ""
+              }
+              className={fieldClass}
+              placeholder={discountType === "PERCENT" ? "15" : "5000"}
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-muted">
+          Sitede eski fiyat üstü çizili, indirimli fiyat vurgulu görünür.
+        </p>
+      </div>
+
       <Field label="Özellikler (her satır bir madde)">
         <textarea
           name="features"
