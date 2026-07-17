@@ -330,12 +330,16 @@ export async function getPublishedFaqs(): Promise<Faq[]> {
   }));
 }
 
-export async function getPublishedTestimonials(): Promise<Testimonial[]> {
-  const rows = await prisma.testimonial.findMany({
-    where: { published: true },
-    orderBy: { order: "asc" },
-  });
-  return rows.map((t) => ({
+function mapTestimonial(t: {
+  id: string;
+  name: string;
+  role: string | null;
+  content: string;
+  rating: number;
+  published: boolean;
+  order: number;
+}): Testimonial {
+  return {
     id: t.id,
     name: t.name,
     role: t.role ?? undefined,
@@ -343,7 +347,29 @@ export async function getPublishedTestimonials(): Promise<Testimonial[]> {
     rating: t.rating,
     published: t.published,
     order: t.order,
-  }));
+  };
+}
+
+export async function getPublishedTestimonials(): Promise<Testimonial[]> {
+  const rows = await prisma.testimonial.findMany({
+    where: { published: true },
+    orderBy: { order: "asc" },
+  });
+  return rows.map(mapTestimonial);
+}
+
+export async function getAllTestimonials(): Promise<Testimonial[]> {
+  const rows = await prisma.testimonial.findMany({
+    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+  });
+  return rows.map(mapTestimonial);
+}
+
+export async function getTestimonialById(
+  id: string,
+): Promise<Testimonial | null> {
+  const row = await prisma.testimonial.findUnique({ where: { id } });
+  return row ? mapTestimonial(row) : null;
 }
 
 export async function getInquiries(): Promise<Inquiry[]> {

@@ -113,6 +113,66 @@ export async function toggleAnnouncementAction(formData: FormData) {
   revalidatePath("/admin/duyurular");
 }
 
+// ---------- Testimonials (Referanslar) ----------
+export async function saveTestimonialAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim();
+  const content = String(formData.get("content") ?? "").trim();
+  const ratingRaw = Number(formData.get("rating") ?? 5);
+  const rating = Math.min(5, Math.max(1, Number.isFinite(ratingRaw) ? ratingRaw : 5));
+  const order = Number(formData.get("order") ?? 0) || 0;
+  const published = parseBool(formData.get("published"));
+
+  if (!name) return { error: "İsim gerekli." };
+  if (!content) return { error: "Yorum metni gerekli." };
+
+  try {
+    if (id) {
+      await prisma.testimonial.update({
+        where: { id },
+        data: { name, role: role || null, content, rating, order, published },
+      });
+    } else {
+      await prisma.testimonial.create({
+        data: { name, role: role || null, content, rating, order, published },
+      });
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Kayıt hatası" };
+  }
+
+  revalidatePublic();
+  revalidatePath("/admin/referanslar");
+  redirect("/admin/referanslar");
+}
+
+export async function deleteTestimonialAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (id) await prisma.testimonial.delete({ where: { id } });
+  revalidatePublic();
+  revalidatePath("/admin/referanslar");
+}
+
+export async function toggleTestimonialAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const row = await prisma.testimonial.findUnique({ where: { id } });
+  if (!row) return;
+  await prisma.testimonial.update({
+    where: { id },
+    data: { published: !row.published },
+  });
+  revalidatePublic();
+  revalidatePath("/admin/referanslar");
+}
+
 // ---------- Services ----------
 export async function saveServiceAction(
   _prev: ActionState,
