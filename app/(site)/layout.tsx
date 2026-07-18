@@ -1,6 +1,7 @@
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
+import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { getSiteSettings } from "@/lib/data";
@@ -29,6 +30,7 @@ export default async function SiteLayout({
         {children}
       </main>
       <SiteFooter />
+      <ScrollToTop />
       <WhatsAppButton />
     </LocaleProvider>
   );
