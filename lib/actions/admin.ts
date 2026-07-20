@@ -21,7 +21,8 @@ import { testSmtpConnection } from "@/lib/mail";
 import {
   analyzeCaption,
   collectMediaUrls,
-  fetchInstagramMedia,
+  fetchInstagramByUsername,
+  normalizeInstagramUsername,
 } from "@/lib/instagram";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
@@ -883,7 +884,6 @@ export async function saveSettingsAction(
   await requirePermission("settings");
 
   const smtpPasswordInput = String(formData.get("smtpPassword") ?? "");
-  const igTokenInput = String(formData.get("instagramAccessToken") ?? "");
   const existing = await prisma.siteSettings.findUnique({
     where: { id: "default" },
   });
@@ -903,12 +903,6 @@ export async function saveSettingsAction(
     instagram: String(formData.get("instagram") ?? "").trim(),
     youtube: String(formData.get("youtube") ?? "").trim(),
     tiktok: String(formData.get("tiktok") ?? "").trim(),
-    instagramUserId: String(formData.get("instagramUserId") ?? "").trim(),
-    // Token boş bırakılırsa mevcut kayıt korunur
-    instagramAccessToken:
-      igTokenInput.trim() !== ""
-        ? igTokenInput.trim()
-        : (existing?.instagramAccessToken ?? ""),
     showPrices: parseBool(formData.get("showPrices")),
     seoTitle: String(formData.get("seoTitle") ?? "").trim(),
     seoDescription: String(formData.get("seoDescription") ?? "").trim(),
@@ -1098,15 +1092,23 @@ export async function testSmtpAction(): Promise<ActionState> {
   return { ok: true, message: "SMTP bağlantısı başarılı." };
 }
 
-// ---------- Instagram → Portföy ----------
-export async function loadInstagramFeedAction(): Promise<{
+// ---------- Instagram → Portföy (sadece kullanıcı adı) ----------
+export async function loadInstagramFeedAction(
+  formData: FormData,
+): Promise<{
   error?: string;
-  items?: Awaited<ReturnType<typeof fetchInstagramMedia>>["items"];
+  username?: string;
+  items?: Awaited<ReturnType<typeof fetchInstagramByUsername>>["items"];
 }> {
   await requirePermission("portfolio");
-  const result = await fetchInstagramMedia(40);
-  if (result.error) return { error: result.error };
-  return { items: result.items };
+  const username = normalizeInstagramUsername(
+    String(formData.get("username") ?? ""),
+  );
+  if (!username) return { error: "Instagram kullanıcı adı girin." };
+
+  const result = await fetchInstagramByUsername(username, 40);
+  if (result.error) return { error: result.error, username: result.username };
+  return { items: result.items, username: result.username };
 }
 
 export async function importInstagramMediaAction(
@@ -1114,10 +1116,14 @@ export async function importInstagramMediaAction(
 ): Promise<ActionState> {
   await requirePermission("portfolio");
 
+  const username = normalizeInstagramUsername(
+    String(formData.get("username") ?? ""),
+  );
   const ids = formData
     .getAll("mediaId")
     .map((v) => String(v))
     .filter(Boolean);
+  if (!username) return { error: "Instagram kullanıcı adı gerekli." };
   if (ids.length === 0) {
     return { error: "En az bir gönderi seçin." };
   }
@@ -1125,12 +1131,15 @@ export async function importInstagramMediaAction(
   const published = parseBool(formData.get("published"));
   const forceCategory = String(formData.get("category") ?? "").trim();
 
-  const feed = await fetchInstagramMedia(50);
+  const feed = await fetchInstagramByUsername(username, 50);
   if (feed.error) return { error: feed.error };
 
   const selected = feed.items.filter((i) => ids.includes(i.id));
   if (selected.length === 0) {
-    return { error: "Seçilen gönderiler akışta bulunamadı. Yenileyip tekrar deneyin." };
+    return {
+      error:
+        "Seçilen gönderiler listede bulunamadı. Tekrar getirip seçin.",
+    };
   }
 
   let imported = 0;

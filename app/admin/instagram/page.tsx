@@ -1,7 +1,7 @@
 import { Camera } from "lucide-react";
-import Link from "next/link";
 import { guardAdminPage } from "@/lib/admin-guard";
 import { getSiteSettings } from "@/lib/data";
+import { normalizeInstagramUsername } from "@/lib/instagram";
 import { InstagramImportPanel } from "@/components/admin/InstagramImportPanel";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminInstagramPage() {
   await guardAdminPage("portfolio");
   const settings = await getSiteSettings();
-  const hasCredentials = Boolean(
-    settings.instagramUserId?.trim() && settings.instagramAccessToken?.trim(),
-  );
+  const defaultUsername =
+    normalizeInstagramUsername(settings.instagram) || settings.instagram;
 
   return (
     <div className="space-y-8">
@@ -21,19 +20,14 @@ export default async function AdminInstagramPage() {
           Instagram → Portföy
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Instagram hesabınızdaki gönderileri çekin. Açıklama metnine göre
-          (düğün, gelin, damat, nişan vb.) otomatik etiketler; seçtiklerinizi
-          portföy projesine dönüştürür (kapak + galeri medyası indirilir).
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          Bağlantı:{" "}
-          <Link href="/admin/ayarlar" className="text-accent hover:underline">
-            Site ayarları → Instagram API
-          </Link>
+          Instagram kullanıcı adınızı yazın, gönderileri çekin, seçtiklerinizi
+          portföye aktarın. Meta API / token gerekmez. Açıklamadaki
+          düğün–nişan kelimelerine göre otomatik filtre ve kategori önerisi
+          yapılır.
         </p>
       </div>
 
-      <InstagramImportPanel hasCredentials={hasCredentials} />
+      <InstagramImportPanel defaultUsername={defaultUsername} />
     </div>
   );
 }

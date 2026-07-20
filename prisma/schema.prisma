@@ -36,9 +36,6 @@ model SiteSettings {
   instagram      String  @default("")
   youtube        String  @default("")
   tiktok         String  @default("")
-  /// Instagram Graph API (Business/Creator) — portföy içe aktarma
-  instagramUserId       String @default("")
-  instagramAccessToken  String @default("")
   showPrices     Boolean @default(true)
   seoTitle       String  @default("")
   seoDescription String  @default("")

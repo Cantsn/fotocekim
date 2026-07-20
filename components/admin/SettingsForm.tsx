@@ -92,8 +92,13 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
 
         <h2 className="pt-4 font-serif text-xl text-foreground">Sosyal</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Instagram (profil linki)">
-            <input name="instagram" defaultValue={settings.instagram} className={fieldClass} />
+          <Field label="Instagram (kullanıcı adı veya profil linki)">
+            <input
+              name="instagram"
+              defaultValue={settings.instagram}
+              className={fieldClass}
+              placeholder="@studio veya https://instagram.com/studio"
+            />
           </Field>
           <Field label="YouTube">
             <input name="youtube" defaultValue={settings.youtube} className={fieldClass} />
@@ -102,40 +107,13 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
             <input name="tiktok" defaultValue={settings.tiktok} className={fieldClass} />
           </Field>
         </div>
-
-        <h2 className="pt-4 font-serif text-xl text-foreground">
-          Instagram API (portföy aktarma)
-        </h2>
         <p className="text-xs text-muted">
-          Business/Creator hesap + Meta Graph API gerekir. Token’ı boş
-          bırakırsanız mevcut kayıt korunur.{" "}
+          Portföye aktarmak için:{" "}
           <a href="/admin/instagram" className="text-accent hover:underline">
-            Instagram → Portföy
+            Instagram aktar
           </a>{" "}
-          sayfasından gönderi seçip aktarın.
+          — sadece kullanıcı adı yeterlidir (API gerekmez).
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Instagram User ID">
-            <input
-              name="instagramUserId"
-              defaultValue={settings.instagramUserId}
-              className={fieldClass}
-              placeholder="17841..."
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="Access Token (uzun ömürlü)">
-            <input
-              name="instagramAccessToken"
-              type="password"
-              className={fieldClass}
-              placeholder={
-                settings.instagramAccessToken ? "•••••••• (kayıtlı)" : "EAAG..."
-              }
-              autoComplete="new-password"
-            />
-          </Field>
-        </div>
 
         <h2 className="pt-4 font-serif text-xl text-foreground">SEO & vitrin</h2>
         <Field label="SEO başlık">

@@ -1,21 +1,25 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
 import {
   importInstagramMediaAction,
   loadInstagramFeedAction,
 } from "@/lib/actions/admin";
 import type { IgMediaItem } from "@/lib/instagram";
+import { normalizeInstagramUsername } from "@/lib/instagram";
 import { CATEGORY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Camera, Film, Loader2, RefreshCw } from "lucide-react";
 
 export function InstagramImportPanel({
-  hasCredentials,
+  defaultUsername = "",
 }: {
-  hasCredentials: boolean;
+  defaultUsername?: string;
 }) {
+  const [username, setUsername] = useState(
+    normalizeInstagramUsername(defaultUsername) || defaultUsername.replace(/^@/, ""),
+  );
+  const [loadedUser, setLoadedUser] = useState("");
   const [items, setItems] = useState<IgMediaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -38,16 +42,27 @@ export function InstagramImportPanel({
   const load = () => {
     setError(null);
     setMessage(null);
+    const u = normalizeInstagramUsername(username);
+    if (!u) {
+      setError("Instagram kullanıcı adı girin (ör. studionuz).");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("username", u);
     startTransition(async () => {
-      const res = await loadInstagramFeedAction();
+      const res = await loadInstagramFeedAction(fd);
       if (res.error) {
         setError(res.error);
         setItems([]);
+        setLoadedUser("");
         return;
       }
       setItems(res.items || []);
+      setLoadedUser(res.username || u);
       setSelected({});
-      setMessage(`${res.items?.length ?? 0} gönderi yüklendi.`);
+      setMessage(
+        `@${res.username || u} — ${res.items?.length ?? 0} gönderi yüklendi.`,
+      );
     });
   };
 
@@ -62,6 +77,10 @@ export function InstagramImportPanel({
   };
 
   const importSelected = () => {
+    if (!loadedUser) {
+      setError("Önce gönderileri getirin.");
+      return;
+    }
     if (selectedIds.length === 0) {
       setError("En az bir gönderi seçin.");
       return;
@@ -69,6 +88,7 @@ export function InstagramImportPanel({
     setError(null);
     setMessage(null);
     const fd = new FormData();
+    fd.set("username", loadedUser);
     for (const id of selectedIds) fd.append("mediaId", id);
     fd.set("category", category);
     if (published) fd.set("published", "on");
@@ -83,59 +103,58 @@ export function InstagramImportPanel({
     });
   };
 
-  if (!hasCredentials) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-        <h2 className="flex items-center gap-2 font-serif text-xl text-foreground">
-          <Camera className="h-5 w-5 text-accent" />
-          Instagram bağlantısı gerekli
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-muted">
-          Portföye aktarmak için Instagram Business veya Creator hesabınızın{" "}
-          <strong className="text-foreground">User ID</strong> ve{" "}
-          <strong className="text-foreground">uzun ömürlü Access Token</strong>{" "}
-          bilgisini site ayarlarına girin (Meta Graph API).
-        </p>
-        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted">
-          <li>Meta for Developers’da uygulama oluşturun</li>
-          <li>Instagram Graph API izinlerini ekleyin (instagram_basic vb.)</li>
-          <li>Sayfa → Instagram hesabı bağlayın, User ID alın</li>
-          <li>Uzun ömürlü token üretip kaydedin</li>
-        </ol>
-        <Link
-          href="/admin/ayarlar"
-          className="mt-6 inline-flex h-11 items-center rounded-full bg-accent px-5 text-sm font-medium text-white"
-        >
-          Site ayarlarına git
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={load}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {pending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          Instagram’dan getir
-        </button>
-        <label className="inline-flex items-center gap-2 text-sm text-muted">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <label className="block text-xs text-muted">
+          Instagram kullanıcı adı
+          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">
+                @
+              </span>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    load();
+                  }
+                }}
+                className="w-full rounded-xl border border-border bg-muted-bg py-2.5 pr-4 pl-8 text-sm text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
+                placeholder="studionuz"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={load}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {pending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Gönderileri getir
+            </button>
+          </div>
+        </label>
+        <p className="mt-2 text-xs text-muted">
+          API veya token gerekmez. Hesap <strong>herkese açık</strong> olmalı.
+          Profil linki de yapıştırabilirsiniz.
+        </p>
+        <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
           <input
             type="checkbox"
             checked={onlyWedding}
             onChange={(e) => setOnlyWedding(e.target.checked)}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Sadece düğün / nişan sinyali olanlar
+          Sadece düğün / nişan sinyali olanlar (açıklamadan)
         </label>
       </div>
 
@@ -153,7 +172,8 @@ export function InstagramImportPanel({
       {items.length > 0 && (
         <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card p-4">
           <p className="w-full text-sm text-muted">
-            Görünen: {visible.length} · Seçili: {selectedIds.length}
+            @{loadedUser} · Görünen: {visible.length} · Seçili:{" "}
+            {selectedIds.length}
           </p>
           <button
             type="button"
@@ -225,9 +245,11 @@ export function InstagramImportPanel({
                     src={thumb}
                     alt=""
                     className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-muted">
+                    <Camera className="mr-1 h-4 w-4" />
                     Önizleme yok
                   </div>
                 )}
