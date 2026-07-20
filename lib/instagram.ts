@@ -11,7 +11,6 @@ export type IgMediaItem = {
   categoryGuess: string;
 };
 
-/** Her deneme yolunun teşhis kaydı (panelde gösterilir) */
 export type IgAttemptLog = {
   step: string;
   ok: boolean;
@@ -24,7 +23,6 @@ export type IgFetchResult = {
   items: IgMediaItem[];
   username?: string;
   error?: string;
-  /** İnsan dilinde özet + ham detay */
   debug?: {
     summary: string;
     attempts: IgAttemptLog[];
@@ -42,7 +40,6 @@ const PRODUCT_RE = /ürün|urun|product|katalog|dükkan|dukkan|magaza|mağaza/i;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-/** Instagram kullanıcı adını temizle (@, URL, boşluk) */
 export function normalizeInstagramUsername(input: string): string {
   let s = (input || "").trim();
   if (!s) return "";
@@ -60,16 +57,13 @@ export function normalizeInstagramUsername(input: string): string {
   return s.slice(0, 30);
 }
 
-/** sessionid=xxx veya ham sessionid değerini cookie string'e çevir */
 export function normalizeSessionCookie(raw: string): string {
   let s = (raw || "").trim();
   if (!s) return "";
-  // Kullanıcı tüm cookie satırını yapıştırmış olabilir
   if (s.includes("sessionid=")) {
     const m = s.match(/sessionid=([^;\s]+)/i);
     if (m) s = m[1];
   }
-  // Sadece değer
   s = s.replace(/^["']|["']$/g, "").trim();
   if (!s || s.length < 8) return "";
   return `sessionid=${s}`;
@@ -104,7 +98,6 @@ export function analyzeCaption(caption: string): {
 type TimelineNode = {
   id?: string;
   shortcode?: string;
-  __typename?: string;
   is_video?: boolean;
   display_url?: string;
   thumbnail_src?: string;
@@ -127,6 +120,11 @@ type TimelineNode = {
 
 function nodeToItem(node: TimelineNode): IgMediaItem | null {
   if (!node?.id && !node?.shortcode) return null;
+  if (!node.display_url && !node.video_url && !node.thumbnail_src) {
+    // carousel only
+    const kids = node.edge_sidecar_to_children?.edges || [];
+    if (!kids.length) return null;
+  }
   const caption =
     node.edge_media_to_caption?.edges?.[0]?.node?.text?.trim() || "";
   const analysis = analyzeCaption(caption);
@@ -134,7 +132,7 @@ function nodeToItem(node: TimelineNode): IgMediaItem | null {
   const sidecar = node.edge_sidecar_to_children?.edges || [];
   const isCarousel = sidecar.length > 0;
 
-  let mediaType: string = "IMAGE";
+  let mediaType = "IMAGE";
   if (isCarousel) mediaType = "CAROUSEL_ALBUM";
   else if (isVideo) mediaType = "VIDEO";
 
@@ -150,9 +148,10 @@ function nodeToItem(node: TimelineNode): IgMediaItem | null {
     }))
     .filter((c) => c.mediaUrl);
 
-  const mediaUrl = isVideo
-    ? node.video_url || node.display_url
-    : node.display_url;
+  const mediaUrl =
+    (isVideo ? node.video_url || node.display_url : node.display_url) ||
+    node.thumbnail_src ||
+    children[0]?.mediaUrl;
   const id = String(node.id || node.shortcode);
   const shortcode = node.shortcode || id;
 
@@ -161,27 +160,35 @@ function nodeToItem(node: TimelineNode): IgMediaItem | null {
     caption,
     mediaType,
     mediaUrl,
-    thumbnailUrl: node.thumbnail_src || node.display_url,
+    thumbnailUrl: node.thumbnail_src || node.display_url || mediaUrl,
     timestamp: node.taken_at_timestamp
       ? new Date(node.taken_at_timestamp * 1000).toISOString()
       : undefined,
-    permalink: shortcode
-      ? `https://www.instagram.com/p/${shortcode}/`
-      : undefined,
+    permalink:
+      shortcode && !String(shortcode).startsWith("html-")
+        ? `https://www.instagram.com/p/${shortcode}/`
+        : undefined,
     children,
     looksLikeWedding: analysis.looksLikeWedding,
     categoryGuess: analysis.categoryGuess,
   };
 }
 
-function previewBody(text: string, max = 480): string {
+function previewBody(text: string, max = 500): string {
   const t = text.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
   return `${t.slice(0, max)}…`;
 }
 
+function unescapeIgUrl(u: string): string {
+  return u
+    .replace(/\\u0026/g, "&")
+    .replace(/\\\//g, "/")
+    .replace(/\\u003d/g, "=")
+    .replace(/\\u0025/g, "%");
+}
+
 function getSetCookies(res: Response): string[] {
-  // Node 18+ / undici
   const anyHeaders = res.headers as Headers & {
     getSetCookie?: () => string[];
   };
@@ -222,20 +229,16 @@ function buildHeaders(cookie: string, json = true): Record<string, string> {
     "Sec-Ch-Ua-Platform": '"Windows"',
     "Sec-Fetch-Dest": json ? "empty" : "document",
     "Sec-Fetch-Mode": json ? "cors" : "navigate",
-    "Sec-Fetch-Site": json ? "same-origin" : "none",
-    "Sec-Fetch-User": "?1",
+    "Sec-Fetch-Site": "same-origin",
     Referer: "https://www.instagram.com/",
     Origin: "https://www.instagram.com",
     "X-IG-App-ID": "936619743392459",
     "X-ASBD-ID": "129477",
     "X-Requested-With": "XMLHttpRequest",
   };
-  if (json) {
-    h.Accept = "*/*";
-  } else {
-    h.Accept =
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8";
-  }
+  h.Accept = json
+    ? "*/*"
+    : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8";
   if (cookie) h.Cookie = cookie;
   const csrf = cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)?.[1];
   if (csrf) {
@@ -249,7 +252,320 @@ type AttemptResult = {
   nodes: TimelineNode[] | null;
   log: IgAttemptLog;
   cookie?: string;
+  rateLimited?: boolean;
 };
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/** Modern GraphQL / timeline post objesini TimelineNode'a çevir */
+function modernPostToNode(obj: Record<string, unknown>): TimelineNode | null {
+  const code =
+    (typeof obj.code === "string" && obj.code) ||
+    (typeof obj.shortcode === "string" && obj.shortcode) ||
+    "";
+  const id =
+    (typeof obj.id === "string" && obj.id) ||
+    (typeof obj.pk === "string" && obj.pk) ||
+    (typeof obj.pk === "number" && String(obj.pk)) ||
+    code;
+  if (!id && !code) return null;
+
+  // caption
+  let caption = "";
+  if (typeof obj.caption === "string") caption = obj.caption;
+  else if (obj.caption && typeof obj.caption === "object") {
+    const c = obj.caption as { text?: string };
+    caption = c.text || "";
+  } else if (obj.edge_media_to_caption) {
+    // already graphql style
+  }
+
+  // image
+  let display_url =
+    typeof obj.display_url === "string" ? obj.display_url : undefined;
+  let thumbnail_src =
+    typeof obj.thumbnail_src === "string" ? obj.thumbnail_src : undefined;
+  let video_url =
+    typeof obj.video_url === "string" ? obj.video_url : undefined;
+
+  const iv2 = obj.image_versions2 as
+    | { candidates?: { url?: string }[] }
+    | undefined;
+  if (!display_url && iv2?.candidates?.[0]?.url) {
+    display_url = iv2.candidates[0].url;
+  }
+  if (!thumbnail_src && display_url) thumbnail_src = display_url;
+
+  const vv = obj.video_versions as { url?: string }[] | undefined;
+  if (!video_url && vv?.[0]?.url) video_url = vv[0].url;
+
+  const is_video =
+    Boolean(obj.is_video) ||
+    obj.media_type === 2 ||
+    obj.media_type === "2" ||
+    Boolean(video_url && !display_url);
+
+  // carousel
+  const carousel = obj.carousel_media as Record<string, unknown>[] | undefined;
+  const sidecarEdges =
+    carousel?.map((m, i) => {
+      const childIv = m.image_versions2 as
+        | { candidates?: { url?: string }[] }
+        | undefined;
+      const childVv = m.video_versions as { url?: string }[] | undefined;
+      const childUrl =
+        childIv?.candidates?.[0]?.url ||
+        (typeof m.display_url === "string" ? m.display_url : undefined) ||
+        childVv?.[0]?.url;
+      return {
+        node: {
+          id: String(m.id || m.pk || `${id}-${i}`),
+          is_video: m.media_type === 2 || Boolean(childVv?.[0]?.url),
+          display_url: childUrl,
+          video_url: childVv?.[0]?.url,
+        },
+      };
+    }) || [];
+
+  const taken =
+    typeof obj.taken_at === "number"
+      ? obj.taken_at
+      : typeof obj.taken_at_timestamp === "number"
+        ? obj.taken_at_timestamp
+        : undefined;
+
+  if (!display_url && !video_url && sidecarEdges.length === 0) {
+    // edge_media style already?
+    if (typeof obj.display_url !== "string") return null;
+  }
+
+  const node: TimelineNode = {
+    id: String(id),
+    shortcode: code || String(id),
+    is_video,
+    display_url: display_url ? unescapeIgUrl(display_url) : undefined,
+    thumbnail_src: thumbnail_src ? unescapeIgUrl(thumbnail_src) : undefined,
+    video_url: video_url ? unescapeIgUrl(video_url) : undefined,
+    taken_at_timestamp: taken,
+    edge_media_to_caption: caption
+      ? { edges: [{ node: { text: caption } }] }
+      : (obj.edge_media_to_caption as TimelineNode["edge_media_to_caption"]),
+    edge_sidecar_to_children: sidecarEdges.length
+      ? { edges: sidecarEdges }
+      : (obj.edge_sidecar_to_children as TimelineNode["edge_sidecar_to_children"]),
+  };
+
+  return node;
+}
+
+/** JSON ağacında medya objelerini topla */
+function walkCollectMedia(
+  value: unknown,
+  out: Map<string, TimelineNode>,
+  depth = 0,
+): void {
+  if (depth > 40 || value == null) return;
+  if (Array.isArray(value)) {
+    for (const v of value) walkCollectMedia(v, out, depth + 1);
+    return;
+  }
+  if (typeof value !== "object") return;
+  const obj = value as Record<string, unknown>;
+
+  // GraphQL edge_owner style
+  const edges = obj.edge_owner_to_timeline_media as
+    | { edges?: { node?: TimelineNode }[] }
+    | undefined;
+  if (edges?.edges?.length) {
+    for (const e of edges.edges) {
+      if (e.node) {
+        const item = nodeToItem(e.node);
+        if (item) {
+          const n = e.node;
+          out.set(String(n.id || n.shortcode), n);
+        }
+      }
+    }
+  }
+
+  // Modern timeline connection
+  if (
+    obj.xdt_api__v1__feed__user_timeline_graphql_connection ||
+    obj.user_timeline_graphql_connection
+  ) {
+    const conn = (obj.xdt_api__v1__feed__user_timeline_graphql_connection ||
+      obj.user_timeline_graphql_connection) as {
+      edges?: { node?: Record<string, unknown> }[];
+    };
+    for (const e of conn.edges || []) {
+      if (e.node) {
+        const n = modernPostToNode(e.node);
+        if (n) out.set(String(n.id || n.shortcode), n);
+      }
+    }
+  }
+
+  // Single modern post-like object
+  const looksLikePost =
+    (typeof obj.code === "string" || typeof obj.shortcode === "string") &&
+    (obj.image_versions2 ||
+      obj.display_url ||
+      obj.carousel_media ||
+      obj.video_versions ||
+      obj.media_type != null);
+  if (looksLikePost) {
+    const n = modernPostToNode(obj);
+    if (n) out.set(String(n.id || n.shortcode), n);
+  }
+
+  for (const v of Object.values(obj)) {
+    if (typeof v === "object" && v !== null) {
+      walkCollectMedia(v, out, depth + 1);
+    }
+  }
+}
+
+function extractNodesFromHtml(html: string, username: string): {
+  nodes: TimelineNode[];
+  note: string;
+  isProfilePage: boolean;
+} {
+  const isProfilePage =
+    html.includes(`@${username}`) ||
+    html.includes(`(@${username})`) ||
+    html.includes(`/${username}/`) ||
+    new RegExp(`content=["'][^"']*@${username}`, "i").test(html) ||
+    html.includes(`"username":"${username}"`);
+
+  const isLoginOnly =
+    !isProfilePage &&
+    (html.includes('name="username"') ||
+      html.includes("loginForm") ||
+      html.includes("/accounts/login"));
+
+  if (isLoginOnly) {
+    return { nodes: [], note: "Login sayfası", isProfilePage: false };
+  }
+
+  const found = new Map<string, TimelineNode>();
+
+  // 1) application/json script blobs (Instagram Relay)
+  const jsonScripts = [
+    ...html.matchAll(
+      /<script[^>]*type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+  ];
+  for (const m of jsonScripts) {
+    const raw = m[1]?.trim();
+    if (!raw || raw.length < 20) continue;
+    try {
+      const json = JSON.parse(raw) as unknown;
+      walkCollectMedia(json, found);
+    } catch {
+      // ignore bad json chunks
+    }
+  }
+
+  // 2) _sharedData
+  const shared = html.match(
+    /window\._sharedData\s*=\s*(\{[\s\S]+?\});<\/script>/,
+  );
+  if (shared?.[1]) {
+    try {
+      walkCollectMedia(JSON.parse(shared[1]), found);
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3) AdditionalDataLoaded / require preloads
+  const additional = [
+    ...html.matchAll(
+      /window\.__additionalDataLoaded\s*\(\s*['"][^'"]+['"]\s*,\s*(\{[\s\S]+?\})\s*\)/g,
+    ),
+  ];
+  for (const m of additional) {
+    try {
+      walkCollectMedia(JSON.parse(m[1]), found);
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4) Regex fallback: code + display_url / image url pairs
+  if (found.size === 0) {
+    const codes = [
+      ...html.matchAll(/"(?:shortcode|code)"\s*:\s*"([A-Za-z0-9_-]{5,})"/g),
+    ].map((m) => m[1]);
+    const urls = [
+      ...html.matchAll(
+        /"(?:display_url|thumbnail_src|src)"\s*:\s*"(https:[^"]+cdninstagram[^"]+)"/g,
+      ),
+    ].map((m) => unescapeIgUrl(m[1]));
+    const moreUrls = [
+      ...html.matchAll(
+        /"(?:display_url|thumbnail_src)"\s*:\s*"(https:\\\/\\\/[^"]+)"/g,
+      ),
+    ].map((m) => unescapeIgUrl(m[1]));
+    const allUrls = [...urls, ...moreUrls];
+    const uniqueCodes = [...new Set(codes)].slice(0, 30);
+    const uniqueUrls = [...new Set(allUrls)].slice(0, 30);
+
+    if (uniqueCodes.length) {
+      uniqueCodes.forEach((code, i) => {
+        found.set(code, {
+          id: code,
+          shortcode: code,
+          display_url: uniqueUrls[i] || uniqueUrls[0],
+          thumbnail_src: uniqueUrls[i] || uniqueUrls[0],
+        });
+      });
+    } else if (uniqueUrls.length) {
+      uniqueUrls.forEach((url, i) => {
+        found.set(`u-${i}`, {
+          id: `u-${i}`,
+          shortcode: `u-${i}`,
+          display_url: url,
+          thumbnail_src: url,
+        });
+      });
+    }
+  }
+
+  // 5) og:image as last resort (often only profile pic)
+  if (found.size === 0) {
+    const og = html.match(
+      /property=["']og:image["']\s+content=["']([^"']+)["']/i,
+    ) || html.match(/content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    if (og?.[1] && !og[1].includes("rsrc.php")) {
+      found.set("og", {
+        id: "og",
+        shortcode: "og",
+        display_url: og[1],
+        thumbnail_src: og[1],
+        edge_media_to_caption: {
+          edges: [
+            {
+              node: {
+                text: `Instagram @${username}`,
+              },
+            },
+          ],
+        },
+      });
+    }
+  }
+
+  return {
+    nodes: [...found.values()],
+    note: isProfilePage
+      ? `Profil HTML algılandı, ${found.size} medya adayı`
+      : `HTML parse, ${found.size} medya adayı`,
+    isProfilePage,
+  };
+}
 
 async function warmUp(
   sessionCookie: string,
@@ -262,20 +578,12 @@ async function warmUp(
       cache: "no-store",
       redirect: "follow",
     });
-    const set = getSetCookies(res);
-    const cookie = mergeCookieHeader(sessionCookie, set);
-    const body = await res.text();
-    const isLoginWall =
-      /login|Log in|Giriş yap/i.test(body.slice(0, 2000)) &&
-      body.includes("password");
+    const cookie = mergeCookieHeader(sessionCookie, getSetCookies(res));
     logs.push({
-      step: "1) Ana sayfa ısınma (cookie/csrf)",
-      ok: res.ok && !isLoginWall,
+      step: "1) Ana sayfa ısınma",
+      ok: res.ok,
       status: res.status,
-      detail: isLoginWall
-        ? "Instagram login duvarı / bot engeli döndü"
-        : `Cookie sayısı: ${cookie.split(";").filter(Boolean).length}`,
-      bodyPreview: previewBody(body.slice(0, 600)),
+      detail: `Cookie parçası: ${cookie.split(";").filter(Boolean).length}`,
     });
     return cookie || sessionCookie;
   } catch (e) {
@@ -292,188 +600,127 @@ async function fetchViaWebProfileInfo(
   username: string,
   cookie: string,
 ): Promise<AttemptResult> {
-  const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
-  try {
-    const res = await fetch(url, {
-      headers: buildHeaders(cookie, true),
-      signal: AbortSignal.timeout(25_000),
-      cache: "no-store",
-    });
-    const text = await res.text();
-    const newCookie = mergeCookieHeader(cookie, getSetCookies(res));
-    if (!res.ok) {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "2) web_profile_info API",
-          ok: false,
-          status: res.status,
-          detail: `HTTP ${res.status} — Instagram engeli veya login gereksinimi`,
-          bodyPreview: previewBody(text),
-        },
-      };
-    }
-    let data: {
-      data?: {
-        user?: {
-          edge_owner_to_timeline_media?: {
-            edges?: { node?: TimelineNode }[];
-          };
-          is_private?: boolean;
-        };
-      };
-      message?: string;
-      require_login?: boolean;
-      status?: string;
-    };
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "2) web_profile_info API",
-          ok: false,
-          status: res.status,
-          detail: "JSON parse edilemedi (muhtemelen HTML login sayfası)",
-          bodyPreview: previewBody(text),
-        },
-      };
-    }
-    if (data.require_login || data.status === "fail") {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "2) web_profile_info API",
-          ok: false,
-          status: res.status,
-          detail: data.message || "require_login / status=fail",
-          bodyPreview: previewBody(text),
-        },
-      };
-    }
-    if (data.data?.user?.is_private) {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "2) web_profile_info API",
-          ok: false,
-          status: res.status,
-          detail: "Hesap gizli (private). sessionid ile giriş yapılmış olmalı.",
-          bodyPreview: previewBody(text),
-        },
-      };
-    }
-    const edges =
-      data.data?.user?.edge_owner_to_timeline_media?.edges || [];
-    const nodes = edges.map((e) => e.node).filter(Boolean) as TimelineNode[];
-    return {
-      nodes: nodes.length ? nodes : null,
-      cookie: newCookie,
-      log: {
-        step: "2) web_profile_info API",
-        ok: nodes.length > 0,
-        status: res.status,
-        detail:
-          nodes.length > 0
-            ? `${nodes.length} gönderi bulundu`
-            : "Profil okundu ama gönderi listesi boş",
-        bodyPreview: previewBody(text),
-      },
-    };
-  } catch (e) {
-    return {
-      nodes: null,
-      log: {
-        step: "2) web_profile_info API",
-        ok: false,
-        detail: e instanceof Error ? e.message : "İstek hatası",
-      },
-    };
-  }
-}
+  // Hem www hem i. alt alan adı dene
+  const urls = [
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+    `https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+  ];
+  let lastLog: IgAttemptLog = {
+    step: "2) web_profile_info API",
+    ok: false,
+    detail: "Deneme yok",
+  };
+  let lastCookie = cookie;
 
-async function fetchViaQueryA1(
-  username: string,
-  cookie: string,
-): Promise<AttemptResult> {
-  const url = `https://www.instagram.com/${encodeURIComponent(username)}/?__a=1&__d=dis`;
-  try {
-    const res = await fetch(url, {
-      headers: buildHeaders(cookie, true),
-      signal: AbortSignal.timeout(25_000),
-      cache: "no-store",
-    });
-    const text = await res.text();
-    const newCookie = mergeCookieHeader(cookie, getSetCookies(res));
-    if (!res.ok) {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "3) Profil ?__a=1",
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: buildHeaders(lastCookie, true),
+        signal: AbortSignal.timeout(25_000),
+        cache: "no-store",
+      });
+      const text = await res.text();
+      lastCookie = mergeCookieHeader(lastCookie, getSetCookies(res));
+
+      if (res.status === 429) {
+        lastLog = {
+          step: "2) web_profile_info API",
+          ok: false,
+          status: 429,
+          detail:
+            "HTTP 429 Rate limit — Instagram bu IP’yi geçici kısıtladı. HTML yoluna geçilecek.",
+          bodyPreview: previewBody(text),
+        };
+        return { nodes: null, cookie: lastCookie, log: lastLog, rateLimited: true };
+      }
+      if (!res.ok) {
+        lastLog = {
+          step: "2) web_profile_info API",
           ok: false,
           status: res.status,
-          detail: `HTTP ${res.status}`,
+          detail: `HTTP ${res.status} (${new URL(url).host})`,
           bodyPreview: previewBody(text),
-        },
-      };
-    }
-    try {
-      const data = JSON.parse(text) as {
-        graphql?: {
-          user?: {
-            edge_owner_to_timeline_media?: {
-              edges?: { node?: TimelineNode }[];
+        };
+        continue;
+      }
+      try {
+        const data = JSON.parse(text) as {
+          data?: {
+            user?: {
+              edge_owner_to_timeline_media?: {
+                edges?: { node?: TimelineNode }[];
+              };
+              is_private?: boolean;
             };
           };
+          message?: string;
+          require_login?: boolean;
+          status?: string;
         };
-        items?: unknown[];
-      };
-      const edges =
-        data.graphql?.user?.edge_owner_to_timeline_media?.edges || [];
-      const nodes = edges.map((e) => e.node).filter(Boolean) as TimelineNode[];
-      return {
-        nodes: nodes.length ? nodes : null,
-        cookie: newCookie,
-        log: {
-          step: "3) Profil ?__a=1",
-          ok: nodes.length > 0,
-          status: res.status,
-          detail:
-            nodes.length > 0
-              ? `${nodes.length} gönderi`
-              : "JSON geldi ama medya yok",
-          bodyPreview: previewBody(text),
-        },
-      };
-    } catch {
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "3) Profil ?__a=1",
+        if (data.require_login || data.status === "fail") {
+          lastLog = {
+            step: "2) web_profile_info API",
+            ok: false,
+            status: res.status,
+            detail: data.message || "require_login",
+            bodyPreview: previewBody(text),
+          };
+          continue;
+        }
+        if (data.data?.user?.is_private) {
+          return {
+            nodes: null,
+            cookie: lastCookie,
+            log: {
+              step: "2) web_profile_info API",
+              ok: false,
+              status: res.status,
+              detail: "Hesap gizli (private).",
+            },
+          };
+        }
+        const edges =
+          data.data?.user?.edge_owner_to_timeline_media?.edges || [];
+        const nodes = edges
+          .map((e) => e.node)
+          .filter(Boolean) as TimelineNode[];
+        if (nodes.length) {
+          return {
+            nodes,
+            cookie: lastCookie,
+            log: {
+              step: "2) web_profile_info API",
+              ok: true,
+              status: res.status,
+              detail: `${nodes.length} gönderi (${new URL(url).host})`,
+            },
+          };
+        }
+        lastLog = {
+          step: "2) web_profile_info API",
           ok: false,
           status: res.status,
-          detail: "Yanıt JSON değil",
+          detail: "Profil JSON ama gönderi listesi boş",
           bodyPreview: previewBody(text),
-        },
-      };
-    }
-  } catch (e) {
-    return {
-      nodes: null,
-      log: {
-        step: "3) Profil ?__a=1",
+        };
+      } catch {
+        lastLog = {
+          step: "2) web_profile_info API",
+          ok: false,
+          status: res.status,
+          detail: "JSON değil",
+          bodyPreview: previewBody(text),
+        };
+      }
+    } catch (e) {
+      lastLog = {
+        step: "2) web_profile_info API",
         ok: false,
         detail: e instanceof Error ? e.message : "İstek hatası",
-      },
-    };
+      };
+    }
   }
+  return { nodes: null, cookie: lastCookie, log: lastLog };
 }
 
 async function fetchViaProfileHtml(
@@ -484,8 +731,12 @@ async function fetchViaProfileHtml(
     const res = await fetch(
       `https://www.instagram.com/${encodeURIComponent(username)}/`,
       {
-        headers: buildHeaders(cookie, false),
-        signal: AbortSignal.timeout(25_000),
+        headers: {
+          ...buildHeaders(cookie, false),
+          "Sec-Fetch-Site": "none",
+          "Upgrade-Insecure-Requests": "1",
+        },
+        signal: AbortSignal.timeout(30_000),
         cache: "no-store",
         redirect: "follow",
       },
@@ -498,135 +749,35 @@ async function fetchViaProfileHtml(
         nodes: null,
         cookie: newCookie,
         log: {
-          step: "4) Profil HTML",
+          step: "3) Profil HTML (gelişmiş parse)",
           ok: false,
           status: res.status,
           detail: `HTTP ${res.status}`,
           bodyPreview: previewBody(html),
         },
+        rateLimited: res.status === 429,
       };
     }
 
-    // sharedData
-    const shared = html.match(
-      /window\._sharedData\s*=\s*(\{[\s\S]+?\});<\/script>/,
-    );
-    if (shared?.[1]) {
-      try {
-        const json = JSON.parse(shared[1]) as {
-          entry_data?: {
-            ProfilePage?: {
-              graphql?: {
-                user?: {
-                  edge_owner_to_timeline_media?: {
-                    edges?: { node?: TimelineNode }[];
-                  };
-                };
-              };
-            }[];
-          };
-        };
-        const edges =
-          json.entry_data?.ProfilePage?.[0]?.graphql?.user
-            ?.edge_owner_to_timeline_media?.edges || [];
-        const nodes = edges
-          .map((e) => e.node)
-          .filter(Boolean) as TimelineNode[];
-        if (nodes.length) {
-          return {
-            nodes,
-            cookie: newCookie,
-            log: {
-              step: "4) Profil HTML (_sharedData)",
-              ok: true,
-              status: res.status,
-              detail: `${nodes.length} gönderi (_sharedData)`,
-            },
-          };
-        }
-      } catch {
-        // continue
-      }
-    }
-
-    // display_url + shortcode eşleştirme (kısmi)
-    const shortcodes = [
-      ...html.matchAll(/"shortcode"\s*:\s*"([A-Za-z0-9_-]+)"/g),
-    ].map((m) => m[1]);
-    const displayUrls = [
-      ...html.matchAll(/"display_url"\s*:\s*"([^"]+)"/g),
-    ].map((m) => m[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
-    const captions = [
-      ...html.matchAll(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/g),
-    ].map((m) => {
-      try {
-        return JSON.parse(`"${m[1]}"`) as string;
-      } catch {
-        return m[1];
-      }
-    });
-
-    const uniqueCodes = [...new Set(shortcodes)].slice(0, 24);
-    if (uniqueCodes.length === 0 && displayUrls.length === 0) {
-      const loginish =
-        html.includes("loginForm") ||
-        html.includes("Login") ||
-        html.includes('"require_login"');
-      return {
-        nodes: null,
-        cookie: newCookie,
-        log: {
-          step: "4) Profil HTML",
-          ok: false,
-          status: res.status,
-          detail: loginish
-            ? "HTML login/bot sayfası gibi görünüyor — sessionid ekleyin"
-            : "HTML içinde shortcode/display_url bulunamadı",
-          bodyPreview: previewBody(html),
-        },
-      };
-    }
-
-    const nodes: TimelineNode[] = uniqueCodes.map((code, i) => ({
-      id: code,
-      shortcode: code,
-      display_url: displayUrls[i] || displayUrls[0],
-      thumbnail_src: displayUrls[i] || displayUrls[0],
-      edge_media_to_caption: {
-        edges: [{ node: { text: captions[i] || "" } }],
-      },
-    }));
-
-    // display_url var shortcode yoksa
-    if (nodes.length === 0 && displayUrls.length) {
-      displayUrls.slice(0, 12).forEach((url, i) => {
-        nodes.push({
-          id: `html-${i}`,
-          shortcode: `html-${i}`,
-          display_url: url,
-          thumbnail_src: url,
-        });
-      });
-    }
-
+    const extracted = extractNodesFromHtml(html, username);
     return {
-      nodes: nodes.length ? nodes : null,
+      nodes: extracted.nodes.length ? extracted.nodes : null,
       cookie: newCookie,
       log: {
-        step: "4) Profil HTML (regex)",
-        ok: nodes.length > 0,
+        step: "3) Profil HTML (gelişmiş parse)",
+        ok: extracted.nodes.length > 0,
         status: res.status,
-        detail: nodes.length
-          ? `${nodes.length} medya adayı çıkarıldı`
-          : "Parse boş",
-        bodyPreview: previewBody(html),
+        detail: extracted.note,
+        bodyPreview: previewBody(
+          `title-ish: ${html.match(/<title>([^<]+)<\/title>/i)?.[1] || "?"} | ${extracted.note}`,
+        ),
       },
     };
   } catch (e) {
     return {
       nodes: null,
       log: {
-        step: "4) Profil HTML",
+        step: "3) Profil HTML (gelişmiş parse)",
         ok: false,
         detail: e instanceof Error ? e.message : "İstek hatası",
       },
@@ -634,10 +785,84 @@ async function fetchViaProfileHtml(
   }
 }
 
-/**
- * Kullanıcı adıyla gönderi çeker.
- * sessionCookie: tarayıcıdan kopyalanan sessionid (bot engelini aşmak için önerilir)
- */
+/** Embed sayfası bazen daha az engelli */
+async function fetchViaEmbed(
+  username: string,
+  cookie: string,
+): Promise<AttemptResult> {
+  try {
+    const res = await fetch(
+      `https://www.instagram.com/${encodeURIComponent(username)}/embed/`,
+      {
+        headers: buildHeaders(cookie, false),
+        signal: AbortSignal.timeout(20_000),
+        cache: "no-store",
+      },
+    );
+    const html = await res.text();
+    if (!res.ok) {
+      return {
+        nodes: null,
+        log: {
+          step: "4) Embed sayfası",
+          ok: false,
+          status: res.status,
+          detail: `HTTP ${res.status}`,
+          bodyPreview: previewBody(html),
+        },
+        rateLimited: res.status === 429,
+      };
+    }
+    const extracted = extractNodesFromHtml(html, username);
+    // embed often has images as img src
+    if (extracted.nodes.length === 0) {
+      const imgs = [
+        ...html.matchAll(
+          /src="(https:\/\/[^"]+(?:cdninstagram|fbcdn)[^"]+)"/g,
+        ),
+      ]
+        .map((m) => unescapeIgUrl(m[1]))
+        .filter((u) => !u.includes("rsrc.php") && !u.includes("static.cdn"));
+      const unique = [...new Set(imgs)].slice(0, 20);
+      if (unique.length) {
+        return {
+          nodes: unique.map((url, i) => ({
+            id: `embed-${i}`,
+            shortcode: `embed-${i}`,
+            display_url: url,
+            thumbnail_src: url,
+          })),
+          log: {
+            step: "4) Embed sayfası",
+            ok: true,
+            status: res.status,
+            detail: `${unique.length} görsel (img src)`,
+          },
+        };
+      }
+    }
+    return {
+      nodes: extracted.nodes.length ? extracted.nodes : null,
+      log: {
+        step: "4) Embed sayfası",
+        ok: extracted.nodes.length > 0,
+        status: res.status,
+        detail: extracted.note,
+        bodyPreview: previewBody(html),
+      },
+    };
+  } catch (e) {
+    return {
+      nodes: null,
+      log: {
+        step: "4) Embed sayfası",
+        ok: false,
+        detail: e instanceof Error ? e.message : "İstek hatası",
+      },
+    };
+  }
+}
+
 export async function fetchInstagramByUsername(
   rawUsername: string,
   limit = 30,
@@ -653,61 +878,59 @@ export async function fetchInstagramByUsername(
       items: [],
       error: "Geçerli bir Instagram kullanıcı adı girin.",
       debug: {
-        summary: "Kullanıcı adı boş/geçersiz",
+        summary: "Kullanıcı adı boş",
         attempts: [],
         usedSession,
-        tips: ["Örn: studionuz veya @studionuz"],
+        tips: [],
       },
     };
   }
 
   try {
     let cookie = await warmUp(sessionPart, logs);
+    await sleep(500);
 
-    // Kısa bekleme — bot skorunu biraz düşürür
-    await new Promise((r) => setTimeout(r, 400 + Math.random() * 400));
-
+    // ÖNCE HTML — 429’dan en az etkilenen ve sizin testinizde 200 dönen yol
     let nodes: TimelineNode[] | null = null;
 
-    const a2 = await fetchViaWebProfileInfo(username, cookie);
-    logs.push(a2.log);
-    if (a2.cookie) cookie = a2.cookie;
-    if (a2.nodes?.length) nodes = a2.nodes;
+    const htmlTry = await fetchViaProfileHtml(username, cookie);
+    logs.push(htmlTry.log);
+    if (htmlTry.cookie) cookie = htmlTry.cookie;
+    if (htmlTry.nodes?.length) nodes = htmlTry.nodes;
 
     if (!nodes?.length) {
-      await new Promise((r) => setTimeout(r, 300));
-      const a3 = await fetchViaQueryA1(username, cookie);
-      logs.push(a3.log);
-      if (a3.cookie) cookie = a3.cookie;
-      if (a3.nodes?.length) nodes = a3.nodes;
+      await sleep(600);
+      const embedTry = await fetchViaEmbed(username, cookie);
+      logs.push(embedTry.log);
+      if (embedTry.nodes?.length) nodes = embedTry.nodes;
+    }
+
+    // API sadece HTML yetmezse (429 riski)
+    if (!nodes?.length) {
+      await sleep(1200);
+      const apiTry = await fetchViaWebProfileInfo(username, cookie);
+      logs.push(apiTry.log);
+      if (apiTry.nodes?.length) nodes = apiTry.nodes;
     }
 
     if (!nodes?.length) {
-      await new Promise((r) => setTimeout(r, 300));
-      const a4 = await fetchViaProfileHtml(username, cookie);
-      logs.push(a4.log);
-      if (a4.nodes?.length) nodes = a4.nodes;
-    }
-
-    if (!nodes?.length) {
-      const tips = [
-        "Hesabın herkese açık (public) olduğundan emin olun.",
-        "Sunucu IP’si Instagram tarafından bot sanılıyor olabilir.",
-        "Chrome’da Instagram’a giriş yapın → F12 → Application → Cookies → sessionid değerini kopyalayıp aşağıdaki alana yapıştırın.",
-        "VPN/farklı ağ deneyin veya birkaç dakika sonra tekrar deneyin.",
-      ];
       return {
         items: [],
         username,
         error:
-          "Gönderiler alınamadı. Aşağıdaki teknik detaylara bakın; genelde bot engeli veya login gereksinimi olur.",
+          "Gönderiler parse edilemedi. Aşağıdaki teknik detaya bakın. 429 görüyorsanız birkaç saat bekleyin veya sessionid’yi yenileyin.",
         debug: {
           summary: usedSession
-            ? "sessionid ile denendi ama yine de medya gelmedi"
-            : "sessionid olmadan denendi — Instagram bot engeli çok olası",
+            ? "sessionid var; HTML/embed/API medya çıkaramadı"
+            : "sessionid yok veya yetersiz",
           attempts: logs,
           usedSession,
-          tips,
+          tips: [
+            "HTTP 429 = Instagram sunucu IP’sini geçici kilitledi; 1–6 saat bekleyin.",
+            "sessionid’yi Instagram’dan çıkış-giriş yapıp yeniden kopyalayın.",
+            "Profil HTML 200 ve @kullanıcıadı title’da ise parse güncellemesi gerekir — hata detayını paylaşın.",
+            "Gizli hesapta sessionid, o hesaba erişebilen oturuma ait olmalı.",
+          ],
         },
       };
     }
@@ -717,25 +940,20 @@ export async function fetchInstagramByUsername(
       .filter((x): x is IgMediaItem => Boolean(x))
       .slice(0, Math.min(40, Math.max(1, limit)));
 
-    if (items.length === 0) {
-      return {
-        items: [],
-        username,
-        error: "Profil bulundu ama medya listesi dönüştürülemedi.",
-        debug: {
-          summary: "node → item map boş",
-          attempts: logs,
-          usedSession,
-          tips: [],
-        },
-      };
-    }
+    // Tekrarlayan URL’leri ele
+    const seen = new Set<string>();
+    const unique = items.filter((it) => {
+      const key = it.mediaUrl || it.thumbnailUrl || it.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     return {
-      items,
+      items: unique,
       username,
       debug: {
-        summary: `${items.length} gönderi yüklendi`,
+        summary: `${unique.length} gönderi/medya yüklendi`,
         attempts: logs,
         usedSession,
         tips: [],
@@ -750,13 +968,12 @@ export async function fetchInstagramByUsername(
         summary: "Beklenmeyen hata",
         attempts: logs,
         usedSession,
-        tips: ["Sunucu internet çıkışını ve firewall’u kontrol edin."],
+        tips: [],
       },
     };
   }
 }
 
-/** Bir IG postundan indirilecek medya URL listesi */
 export function collectMediaUrls(item: IgMediaItem): string[] {
   if (item.mediaType === "CAROUSEL_ALBUM" && item.children.length > 0) {
     return item.children
