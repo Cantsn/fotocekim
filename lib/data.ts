@@ -339,18 +339,40 @@ export async function getProjectById(id: string): Promise<Project | null> {
   return row ? mapProject(row) : null;
 }
 
-export async function getPublishedFaqs(): Promise<Faq[]> {
-  const rows = await prisma.faq.findMany({
-    where: { published: true },
-    orderBy: { order: "asc" },
-  });
-  return rows.map((f) => ({
+function mapFaq(f: {
+  id: string;
+  question: string;
+  answer: string;
+  order: number;
+  published: boolean;
+}): Faq {
+  return {
     id: f.id,
     question: f.question,
     answer: f.answer,
     order: f.order,
     published: f.published,
-  }));
+  };
+}
+
+export async function getPublishedFaqs(): Promise<Faq[]> {
+  const rows = await prisma.faq.findMany({
+    where: { published: true },
+    orderBy: { order: "asc" },
+  });
+  return rows.map(mapFaq);
+}
+
+export async function getAllFaqs(): Promise<Faq[]> {
+  const rows = await prisma.faq.findMany({
+    orderBy: [{ order: "asc" }, { question: "asc" }],
+  });
+  return rows.map(mapFaq);
+}
+
+export async function getFaqById(id: string): Promise<Faq | null> {
+  const row = await prisma.faq.findUnique({ where: { id } });
+  return row ? mapFaq(row) : null;
 }
 
 function mapTestimonial(t: {

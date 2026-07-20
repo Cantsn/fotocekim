@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  CircleHelp,
   ClipboardList,
   ExternalLink,
   FolderOpen,
@@ -31,6 +32,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/randevular": ClipboardList,
   "/admin/duyurular": Megaphone,
   "/admin/referanslar": MessageSquareQuote,
+  "/admin/sss": CircleHelp,
   "/admin/portfolyo": FolderOpen,
   "/admin/hizmetler": Images,
   "/admin/paketler": Package,

@@ -179,6 +179,66 @@ export async function toggleTestimonialAction(formData: FormData) {
   revalidatePath("/admin/referanslar");
 }
 
+// ---------- FAQ (SSS) ----------
+export async function saveFaqAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  const question = String(formData.get("question") ?? "").trim();
+  const answer = String(formData.get("answer") ?? "").trim();
+  const order = Number(formData.get("order") ?? 0) || 0;
+  const published = parseBool(formData.get("published"));
+
+  if (!question) return { error: "Soru gerekli." };
+  if (!answer) return { error: "Cevap gerekli." };
+
+  try {
+    if (id) {
+      await prisma.faq.update({
+        where: { id },
+        data: { question, answer, order, published },
+      });
+    } else {
+      await prisma.faq.create({
+        data: { question, answer, order, published },
+      });
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Kayıt hatası" };
+  }
+
+  revalidatePublic();
+  revalidatePath("/admin/sss");
+  revalidatePath("/sss");
+  redirect("/admin/sss");
+}
+
+export async function deleteFaqAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (id) await prisma.faq.delete({ where: { id } });
+  revalidatePublic();
+  revalidatePath("/admin/sss");
+  revalidatePath("/sss");
+}
+
+export async function toggleFaqAction(formData: FormData) {
+  await requirePermission("settings");
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const row = await prisma.faq.findUnique({ where: { id } });
+  if (!row) return;
+  await prisma.faq.update({
+    where: { id },
+    data: { published: !row.published },
+  });
+  revalidatePublic();
+  revalidatePath("/admin/sss");
+  revalidatePath("/sss");
+}
+
 // ---------- Services ----------
 export async function saveServiceAction(
   _prev: ActionState,
