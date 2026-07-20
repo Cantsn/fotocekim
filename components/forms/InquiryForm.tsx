@@ -90,7 +90,10 @@ export function InquiryForm({
   return (
     <form
       action={action}
-      className={cn("space-y-4", className)}
+      className={cn(
+        "min-w-0 max-w-full space-y-4 overflow-x-hidden",
+        className,
+      )}
       onSubmit={(e) => {
         if (!validateLocal()) {
           e.preventDefault();

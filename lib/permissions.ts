@@ -88,6 +88,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { href: "/admin/referanslar", label: "Referanslar", permission: "settings" },
       { href: "/admin/sss", label: "SSS", permission: "settings" },
       { href: "/admin/portfolyo", label: "Portföy", permission: "portfolio" },
+      { href: "/admin/instagram", label: "Instagram aktar", permission: "portfolio" },
       { href: "/admin/hizmetler", label: "Hizmetler", permission: "services" },
       { href: "/admin/paketler", label: "Paketler", permission: "packages" },
       { href: "/admin/medya", label: "Medya", permission: "media" },

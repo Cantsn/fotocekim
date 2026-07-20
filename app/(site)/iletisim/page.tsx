@@ -28,7 +28,7 @@ export default async function IletisimPage() {
           description={t.contact.desc}
         />
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-8">
+          <div className="min-w-0 overflow-x-hidden rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8">
             <InquiryForm source="contact" />
           </div>
           <div className="space-y-6">

@@ -12,12 +12,17 @@ import {
 } from "@/lib/permissions";
 import {
   deleteUploadedFile,
+  saveRemoteMedia,
   saveUploadedImage,
   saveUploadedMedia,
   slugify,
 } from "@/lib/upload";
-// saveUploadedMedia: galeri/kapak için foto + video
 import { testSmtpConnection } from "@/lib/mail";
+import {
+  analyzeCaption,
+  collectMediaUrls,
+  fetchInstagramMedia,
+} from "@/lib/instagram";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
@@ -868,6 +873,7 @@ export async function saveSettingsAction(
   await requirePermission("settings");
 
   const smtpPasswordInput = String(formData.get("smtpPassword") ?? "");
+  const igTokenInput = String(formData.get("instagramAccessToken") ?? "");
   const existing = await prisma.siteSettings.findUnique({
     where: { id: "default" },
   });
@@ -883,6 +889,12 @@ export async function saveSettingsAction(
     instagram: String(formData.get("instagram") ?? "").trim(),
     youtube: String(formData.get("youtube") ?? "").trim(),
     tiktok: String(formData.get("tiktok") ?? "").trim(),
+    instagramUserId: String(formData.get("instagramUserId") ?? "").trim(),
+    // Token boş bırakılırsa mevcut kayıt korunur
+    instagramAccessToken:
+      igTokenInput.trim() !== ""
+        ? igTokenInput.trim()
+        : (existing?.instagramAccessToken ?? ""),
     showPrices: parseBool(formData.get("showPrices")),
     seoTitle: String(formData.get("seoTitle") ?? "").trim(),
     seoDescription: String(formData.get("seoDescription") ?? "").trim(),
@@ -1070,6 +1082,132 @@ export async function testSmtpAction(): Promise<ActionState> {
   const result = await testSmtpConnection();
   if (!result.ok) return { error: result.error || "SMTP test başarısız" };
   return { ok: true, message: "SMTP bağlantısı başarılı." };
+}
+
+// ---------- Instagram → Portföy ----------
+export async function loadInstagramFeedAction(): Promise<{
+  error?: string;
+  items?: Awaited<ReturnType<typeof fetchInstagramMedia>>["items"];
+}> {
+  await requirePermission("portfolio");
+  const result = await fetchInstagramMedia(40);
+  if (result.error) return { error: result.error };
+  return { items: result.items };
+}
+
+export async function importInstagramMediaAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requirePermission("portfolio");
+
+  const ids = formData
+    .getAll("mediaId")
+    .map((v) => String(v))
+    .filter(Boolean);
+  if (ids.length === 0) {
+    return { error: "En az bir gönderi seçin." };
+  }
+
+  const published = parseBool(formData.get("published"));
+  const forceCategory = String(formData.get("category") ?? "").trim();
+
+  const feed = await fetchInstagramMedia(50);
+  if (feed.error) return { error: feed.error };
+
+  const selected = feed.items.filter((i) => ids.includes(i.id));
+  if (selected.length === 0) {
+    return { error: "Seçilen gönderiler akışta bulunamadı. Yenileyip tekrar deneyin." };
+  }
+
+  let imported = 0;
+  const errors: string[] = [];
+
+  for (const item of selected) {
+    try {
+      const analysis = analyzeCaption(item.caption);
+      const category =
+        forceCategory && forceCategory !== "auto"
+          ? forceCategory
+          : analysis.categoryGuess;
+      const title = analysis.title.slice(0, 100);
+      let slug = slugify(title) || `ig-${item.id.slice(-8)}`;
+      const clash = await prisma.project.findUnique({ where: { slug } });
+      if (clash) slug = `${slug}-${item.id.slice(-6)}`;
+
+      const description = [
+        item.caption?.trim() || "",
+        item.permalink ? `\n\nKaynak: ${item.permalink}` : "",
+      ]
+        .join("")
+        .trim()
+        .slice(0, 4000);
+
+      const date = item.timestamp ? new Date(item.timestamp) : null;
+      const urls = collectMediaUrls(item);
+      if (urls.length === 0) {
+        errors.push(`${title}: medya URL yok`);
+        continue;
+      }
+
+      const saved: string[] = [];
+      for (const remote of urls.slice(0, 20)) {
+        try {
+          const { url } = await saveRemoteMedia(remote);
+          saved.push(url);
+        } catch {
+          // tek dosya hatası — diğerlerine devam
+        }
+      }
+      if (saved.length === 0) {
+        errors.push(`${title}: indirme başarısız`);
+        continue;
+      }
+
+      const project = await prisma.project.create({
+        data: {
+          title,
+          slug,
+          description,
+          category,
+          coverUrl: saved[0],
+          date,
+          published,
+          featured: false,
+          order: 0,
+          images: {
+            create: saved.map((url, i) => ({
+              url,
+              alt: title,
+              order: i,
+            })),
+          },
+        },
+      });
+      void project;
+      imported += 1;
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : "Kayıt hatası");
+    }
+  }
+
+  revalidatePublic();
+  revalidatePath("/admin/portfolyo");
+  revalidatePath("/admin/instagram");
+
+  if (imported === 0) {
+    return {
+      error:
+        errors[0] ||
+        "Hiçbir gönderi aktarılamadı. Token izinlerini ve medya erişimini kontrol edin.",
+    };
+  }
+
+  return {
+    ok: true,
+    message: `${imported} proje portföye aktarıldı.${
+      errors.length ? ` ${errors.length} hata.` : ""
+    }`,
+  };
 }
 
 // ---------- Team ----------

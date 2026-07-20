@@ -34,6 +34,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/referanslar": MessageSquareQuote,
   "/admin/sss": CircleHelp,
   "/admin/portfolyo": FolderOpen,
+  "/admin/instagram": Images,
   "/admin/hizmetler": Images,
   "/admin/paketler": Package,
   "/admin/medya": Images,

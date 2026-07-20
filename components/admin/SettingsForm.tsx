@@ -50,7 +50,7 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
 
         <h2 className="pt-4 font-serif text-xl text-foreground">Sosyal</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Instagram">
+          <Field label="Instagram (profil linki)">
             <input name="instagram" defaultValue={settings.instagram} className={fieldClass} />
           </Field>
           <Field label="YouTube">
@@ -58,6 +58,40 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
           </Field>
           <Field label="TikTok">
             <input name="tiktok" defaultValue={settings.tiktok} className={fieldClass} />
+          </Field>
+        </div>
+
+        <h2 className="pt-4 font-serif text-xl text-foreground">
+          Instagram API (portföy aktarma)
+        </h2>
+        <p className="text-xs text-muted">
+          Business/Creator hesap + Meta Graph API gerekir. Token’ı boş
+          bırakırsanız mevcut kayıt korunur.{" "}
+          <a href="/admin/instagram" className="text-accent hover:underline">
+            Instagram → Portföy
+          </a>{" "}
+          sayfasından gönderi seçip aktarın.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Instagram User ID">
+            <input
+              name="instagramUserId"
+              defaultValue={settings.instagramUserId}
+              className={fieldClass}
+              placeholder="17841..."
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="Access Token (uzun ömürlü)">
+            <input
+              name="instagramAccessToken"
+              type="password"
+              className={fieldClass}
+              placeholder={
+                settings.instagramAccessToken ? "•••••••• (kayıtlı)" : "EAAG..."
+              }
+              autoComplete="new-password"
+            />
           </Field>
         </div>
 

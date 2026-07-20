@@ -108,6 +108,10 @@ export interface SiteSettings {
   instagram: string;
   youtube: string;
   tiktok: string;
+  /** Instagram Graph API Business/Creator user id */
+  instagramUserId: string;
+  /** Long-lived access token (gizli) */
+  instagramAccessToken: string;
   showPrices: boolean;
   seoTitle: string;
   seoDescription: string;

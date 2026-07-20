@@ -24,6 +24,8 @@ export const defaultSiteSettings: SiteSettings = {
   instagram: "https://instagram.com/",
   youtube: "https://youtube.com/",
   tiktok: "https://tiktok.com/",
+  instagramUserId: "",
+  instagramAccessToken: "",
   showPrices: true,
   seoTitle: "FotoCekim | Düğün, Dış Çekim, Ürün & Drone Fotoğrafçılığı",
   seoDescription:
@@ -224,6 +226,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       instagram: row.instagram,
       youtube: row.youtube,
       tiktok: row.tiktok,
+      instagramUserId: row.instagramUserId ?? "",
+      instagramAccessToken: row.instagramAccessToken ?? "",
       showPrices: row.showPrices,
       seoTitle: row.seoTitle,
       seoDescription: row.seoDescription,

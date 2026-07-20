@@ -121,6 +121,63 @@ export async function deleteUploadedFile(url: string | null | undefined) {
   }
 }
 
+/** Uzak URL'den (Instagram CDN vb.) dosya indirip local upload'a kaydeder */
+export async function saveRemoteMedia(
+  remoteUrl: string,
+): Promise<{ url: string; kind: "IMAGE" | "VIDEO" }> {
+  const res = await fetch(remoteUrl, {
+    headers: { "User-Agent": "FotoCekimBot/1.0" },
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Medya indirilemedi (${res.status})`);
+  }
+  const contentType = (res.headers.get("content-type") || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  const buffer = Buffer.from(await res.arrayBuffer());
+
+  let mime = contentType;
+  if (!mime || mime === "application/octet-stream") {
+    // URL uzantısından tahmin
+    const pathOnly = remoteUrl.split("?")[0].toLowerCase();
+    if (pathOnly.endsWith(".png")) mime = "image/png";
+    else if (pathOnly.endsWith(".webp")) mime = "image/webp";
+    else if (pathOnly.endsWith(".gif")) mime = "image/gif";
+    else if (pathOnly.endsWith(".mp4")) mime = "video/mp4";
+    else if (pathOnly.endsWith(".webm")) mime = "video/webm";
+    else mime = "image/jpeg";
+  }
+
+  const isVideo = ALLOWED_VIDEOS.has(mime) || mime.startsWith("video/");
+  const isImage = ALLOWED_IMAGES.has(mime) || mime.startsWith("image/");
+  if (!isVideo && !isImage) {
+    throw new Error(`Desteklenmeyen medya türü: ${mime}`);
+  }
+  if (isImage && buffer.length > MAX_IMAGE_BYTES) {
+    // Instagram yüksek çözünürlük olabilir; 20MB'a kadar kabul
+    if (buffer.length > 20 * 1024 * 1024) {
+      throw new Error("Görsel çok büyük (max 20MB)");
+    }
+  }
+  if (isVideo && buffer.length > MAX_VIDEO_BYTES) {
+    throw new Error("Video çok büyük (max 80MB)");
+  }
+
+  const ext =
+    extFromMime(mime) ||
+    (isVideo ? "mp4" : "jpg");
+  const filename = `${Date.now()}-${randomBytes(6).toString("hex")}.${ext}`;
+  const dir = getUploadDir();
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, filename), buffer);
+  return {
+    url: publicFileUrl(filename),
+    kind: isVideo ? "VIDEO" : "IMAGE",
+  };
+}
+
 export function slugify(input: string): string {
   return input
     .toLocaleLowerCase("tr-TR")

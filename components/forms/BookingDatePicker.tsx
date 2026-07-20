@@ -155,14 +155,13 @@ export function BookingDatePicker({
         </span>
       </div>
 
-      {/* compact: her zaman dikey; normal: geniş ekranda yan yana */}
-      <div
-        className={cn(
-          "grid min-w-0 gap-3",
-          compact ? "grid-cols-1" : "grid-cols-1 xl:grid-cols-[1.1fr_1fr]",
-        )}
-      >
-        <div className="min-w-0">
+      {/*
+        Takvim + saat her zaman alt alta.
+        Form dar sütundayken (iletişim/hizmet paneli) yan yana layout
+        saat butonlarının dışarı taşmasına yol açıyordu.
+      */}
+      <div className="grid min-w-0 grid-cols-1 gap-3">
+        <div className="min-w-0 overflow-hidden">
           <div className="mb-2 flex items-center justify-between gap-1">
             <button
               type="button"
@@ -288,13 +287,13 @@ export function BookingDatePicker({
 
         <div
           className={cn(
-            "min-w-0 rounded-xl border border-border bg-muted-bg/40",
-            compact ? "p-2.5" : "min-h-[140px] p-3 sm:p-4",
+            "min-w-0 overflow-hidden rounded-xl border border-border bg-muted-bg/40",
+            compact ? "p-2.5" : "p-3 sm:p-4",
           )}
         >
           {!eventDate && (
             <p className={cn("text-muted", compact ? "text-[11px]" : "text-xs")}>
-              Takvimden gün seçin
+              Takvimden gün seçin; ardından saat listesi burada açılır.
             </p>
           )}
 
@@ -308,6 +307,14 @@ export function BookingDatePicker({
               >
                 {formatDateDot(eventDate)}
               </p>
+              <p
+                className={cn(
+                  "mt-0.5 text-muted",
+                  compact ? "text-[10px]" : "text-xs",
+                )}
+              >
+                Saat seçin
+              </p>
 
               {dayMeta && dayMeta.labels.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -315,7 +322,7 @@ export function BookingDatePicker({
                     <div
                       key={`${l.type}-${l.title}`}
                       className={cn(
-                        "rounded-lg border px-2 py-1 text-[11px] leading-snug",
+                        "rounded-lg border px-2 py-1 text-[11px] leading-snug break-words",
                         l.type === "HOLIDAY" || l.type === "CLOSED"
                           ? "border-amber-500/40 bg-amber-500/10 text-amber-950"
                           : "border-violet-500/40 bg-violet-500/10 text-violet-950",
@@ -342,14 +349,22 @@ export function BookingDatePicker({
 
               <div
                 className={cn(
-                  "mt-2 grid min-w-0",
+                  "mt-2 grid w-full min-w-0",
+                  // 4 sütun dar alanda da sığar; taşmayı engelle
                   compact
-                    ? "grid-cols-3 gap-1 sm:grid-cols-4"
-                    : "grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2",
+                    ? "grid-cols-4 gap-1"
+                    : "grid-cols-4 gap-1.5 sm:grid-cols-5 sm:gap-2",
                 )}
               >
                 {loadingSlots && (
-                  <p className="col-span-full text-xs text-muted">…</p>
+                  <p className="col-span-full text-xs text-muted">
+                    Saatler yükleniyor…
+                  </p>
+                )}
+                {!loadingSlots && slots.length === 0 && (
+                  <p className="col-span-full text-xs text-muted">
+                    Bu gün için müsait saat yok.
+                  </p>
                 )}
                 {slots.map((s) => {
                   const sel = eventTime === s.time;
@@ -360,13 +375,13 @@ export function BookingDatePicker({
                       disabled={!s.available}
                       onClick={() => onTimeChange(s.time)}
                       className={cn(
-                        "min-w-0 border font-medium",
+                        "box-border w-full min-w-0 max-w-full border font-medium tabular-nums",
                         compact
-                          ? "rounded-md px-0.5 py-1.5 text-[10px]"
-                          : "rounded-lg px-1 py-2 text-xs sm:rounded-xl sm:px-2 sm:text-sm",
+                          ? "rounded-md px-0.5 py-1.5 text-[10px] leading-tight"
+                          : "rounded-lg px-0.5 py-2 text-[11px] leading-tight sm:rounded-xl sm:px-1 sm:text-xs",
                         s.available &&
                           !sel &&
-                          "border-emerald-500/40 bg-card text-foreground",
+                          "border-emerald-500/40 bg-card text-foreground hover:border-accent",
                         s.available &&
                           sel &&
                           "border-accent bg-accent text-white",
@@ -374,7 +389,7 @@ export function BookingDatePicker({
                           "cursor-not-allowed border-border bg-muted-bg text-muted line-through opacity-50",
                       )}
                     >
-                      {s.time}
+                      {s.time.slice(0, 5)}
                     </button>
                   );
                 })}
@@ -382,11 +397,11 @@ export function BookingDatePicker({
               {eventTime && (
                 <p
                   className={cn(
-                    "mt-2 font-medium text-foreground",
+                    "mt-2 font-medium text-foreground break-words",
                     compact ? "text-xs" : "text-sm",
                   )}
                 >
-                  {formatDateDot(eventDate)} · {eventTime}
+                  Seçilen: {formatDateDot(eventDate)} · {eventTime.slice(0, 5)}
                 </p>
               )}
             </>
