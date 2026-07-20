@@ -26,6 +26,16 @@ import {
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
+/** Google Maps iframe HTML veya düz embed URL → src */
+function normalizeMapEmbedInput(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  const fromIframe = s.match(/src=["']([^"']+)["']/i);
+  if (fromIframe?.[1]) return fromIframe[1].trim();
+  // maps.app.goo.gl / share link değil, sadece google.com/maps/embed kabul etmeye çalış
+  return s;
+}
+
 function revalidatePublic() {
   revalidatePath("/", "layout");
   revalidatePath("/admin", "layout");
@@ -886,6 +896,10 @@ export async function saveSettingsAction(
     email: String(formData.get("email") ?? "").trim(),
     address: String(formData.get("address") ?? "").trim(),
     city: String(formData.get("city") ?? "").trim(),
+    mapEmbedUrl: normalizeMapEmbedInput(
+      String(formData.get("mapEmbedUrl") ?? ""),
+    ),
+    mapLinkUrl: String(formData.get("mapLinkUrl") ?? "").trim(),
     instagram: String(formData.get("instagram") ?? "").trim(),
     youtube: String(formData.get("youtube") ?? "").trim(),
     tiktok: String(formData.get("tiktok") ?? "").trim(),

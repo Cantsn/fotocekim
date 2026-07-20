@@ -48,6 +48,48 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
           <input name="address" defaultValue={settings.address} className={fieldClass} />
         </Field>
 
+        <h2 className="pt-4 font-serif text-xl text-foreground">
+          İletişim haritası
+        </h2>
+        <p className="text-xs text-muted">
+          Google Haritalar’da konumu açın → <strong>Paylaş</strong> →{" "}
+          <strong>Haritayı yerleştir</strong> → HTML’i veya yalnızca{" "}
+          <code className="text-foreground">src=&quot;…&quot;</code> adresini
+          yapıştırın. İletişim sayfasında görünür.
+        </p>
+        <Field label="Harita embed (iframe src veya tam iframe HTML)">
+          <textarea
+            name="mapEmbedUrl"
+            rows={3}
+            defaultValue={settings.mapEmbedUrl}
+            className={fieldClass}
+            placeholder='https://www.google.com/maps/embed?pb=... veya <iframe src="..."></iframe>'
+          />
+        </Field>
+        <Field label="Haritada aç linki (opsiyonel)">
+          <input
+            name="mapLinkUrl"
+            defaultValue={settings.mapLinkUrl}
+            className={fieldClass}
+            placeholder="https://maps.google.com/?q=... veya https://maps.app.goo.gl/..."
+          />
+        </Field>
+        {settings.mapEmbedUrl && (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <p className="border-b border-border bg-muted-bg px-3 py-2 text-xs text-muted">
+              Önizleme
+            </p>
+            <iframe
+              title="Harita önizleme"
+              src={settings.mapEmbedUrl}
+              className="aspect-video w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
+        )}
+
         <h2 className="pt-4 font-serif text-xl text-foreground">Sosyal</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Instagram (profil linki)">

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ExternalLink, MapPin } from "lucide-react";
 import { getSiteSettings } from "@/lib/data";
 import { getDictionary } from "@/lib/i18n/server";
 import { Container } from "@/components/ui/Container";
@@ -18,6 +19,15 @@ export default async function IletisimPage() {
     getSiteSettings(),
     getDictionary(),
   ]);
+
+  const mapEmbed = settings.mapEmbedUrl?.trim() || "";
+  const mapLink =
+    settings.mapLinkUrl?.trim() ||
+    (settings.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          [settings.address, settings.city].filter(Boolean).join(", "),
+        )}`
+      : "");
 
   return (
     <div className="py-12 sm:py-16 md:py-24">
@@ -65,17 +75,49 @@ export default async function IletisimPage() {
                     {t.footer.whatsapp}
                   </a>
                 </li>
-                <li>
-                  {settings.address}
-                  {settings.city ? `, ${settings.city}` : ""}
-                </li>
+                {(settings.address || settings.city) && (
+                  <li className="flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    <span>
+                      {settings.address}
+                      {settings.city
+                        ? `${settings.address ? ", " : ""}${settings.city}`
+                        : ""}
+                    </span>
+                  </li>
+                )}
               </ul>
+              {mapLink && (
+                <a
+                  href={mapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Haritada aç / yol tarifi
+                </a>
+              )}
             </div>
-            <MediaPlaceholder
-              label="Map"
-              aspect="video"
-              className="rounded-2xl"
-            />
+
+            {mapEmbed ? (
+              <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <iframe
+                  title="Konum haritası"
+                  src={mapEmbed}
+                  className="aspect-video min-h-[240px] w-full border-0 sm:min-h-[280px]"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <MediaPlaceholder
+                label="Harita — Admin → Site ayarları’ndan ekleyin"
+                aspect="video"
+                className="rounded-2xl"
+              />
+            )}
           </div>
         </div>
       </Container>

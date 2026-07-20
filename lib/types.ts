@@ -105,6 +105,10 @@ export interface SiteSettings {
   email: string;
   address: string;
   city: string;
+  /** Google Maps embed iframe src */
+  mapEmbedUrl: string;
+  /** Haritada aç (Google Maps link) */
+  mapLinkUrl: string;
   instagram: string;
   youtube: string;
   tiktok: string;
