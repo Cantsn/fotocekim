@@ -13,6 +13,7 @@ import {
   Camera,
   ChevronDown,
   Film,
+  Images,
   Loader2,
   RefreshCw,
 } from "lucide-react";
@@ -43,15 +44,16 @@ export function InstagramImportPanel({
       return "";
     }
   });
-  const [showSession, setShowSession] = useState(false);
+  const [showSession, setShowSession] = useState(true);
   const [loadedUser, setLoadedUser] = useState("");
   const [items, setItems] = useState<IgMediaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [debug, setDebug] = useState<DebugInfo | null>(null);
-  const [debugOpen, setDebugOpen] = useState(true);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [onlyWedding, setOnlyWedding] = useState(true);
+  /** Varsayılan: tüm gönderiler — kullanıcı seçer */
+  const [onlyWedding, setOnlyWedding] = useState(false);
   const [category, setCategory] = useState("auto");
   const [published, setPublished] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -61,9 +63,9 @@ export function InstagramImportPanel({
     return items.filter((i) => i.looksLikeWedding);
   }, [items, onlyWedding]);
 
-  const selectedIds = useMemo(
-    () => Object.keys(selected).filter((id) => selected[id]),
-    [selected],
+  const selectedItems = useMemo(
+    () => items.filter((i) => selected[i.id]),
+    [items, selected],
   );
 
   const persistSession = (value: string) => {
@@ -82,8 +84,15 @@ export function InstagramImportPanel({
     setDebug(null);
     const u = normalizeInstagramUsername(username);
     if (!u) {
-      setError("Instagram kullanıcı adı girin (ör. studionuz).");
+      setError("Instagram kullanıcı adı girin (ör. dugunoncesikareler).");
       return;
+    }
+    if (!sessionCookie.trim()) {
+      setError(
+        "Tüm gönderileri (foto + video + açıklama) çekmek için sessionid gerekli. Aşağıdaki alana yapıştırın.",
+      );
+      setShowSession(true);
+      // yine de dene — HTML ile kısmi sonuç gelebilir
     }
     const fd = new FormData();
     fd.set("username", u);
@@ -92,22 +101,23 @@ export function InstagramImportPanel({
       const res = await loadInstagramFeedAction(fd);
       if (res.debug) {
         setDebug(res.debug as DebugInfo);
-        setDebugOpen(true);
+        setDebugOpen(Boolean(res.error));
       }
-      if (res.error) {
+      if (res.error && !(res.items && res.items.length)) {
         setError(res.error);
         setItems([]);
         setLoadedUser("");
         return;
       }
+      if (res.error && res.items?.length) {
+        setMessage(res.error);
+      }
       setItems(res.items || []);
       setLoadedUser(res.username || u);
       setSelected({});
       setMessage(
-        `@${res.username || u} — ${res.items?.length ?? 0} gönderi yüklendi.`,
+        `@${res.username || u} — ${res.items?.length ?? 0} gönderi yüklendi. İstediğinizi seçip portföye aktarın.`,
       );
-      // Başarıda da debug özeti (hangi yol çalıştı)
-      if (res.debug) setDebugOpen(false);
     });
   };
 
@@ -121,29 +131,22 @@ export function InstagramImportPanel({
     setSelected(next);
   };
 
+  const clearSelection = () => setSelected({});
+
   const importSelected = () => {
-    if (!loadedUser) {
-      setError("Önce gönderileri getirin.");
-      return;
-    }
-    if (selectedIds.length === 0) {
+    if (selectedItems.length === 0) {
       setError("En az bir gönderi seçin.");
       return;
     }
     setError(null);
     setMessage(null);
     const fd = new FormData();
-    fd.set("username", loadedUser);
-    if (sessionCookie.trim()) fd.set("sessionCookie", sessionCookie.trim());
-    for (const id of selectedIds) fd.append("mediaId", id);
+    // Tam veri — Instagram’a ikinci kez gitmiyoruz
+    fd.set("itemsJson", JSON.stringify(selectedItems));
     fd.set("category", category);
     if (published) fd.set("published", "on");
     startTransition(async () => {
       const res = await importInstagramMediaAction(fd);
-      if (res.debug) {
-        setDebug(res.debug as DebugInfo);
-        setDebugOpen(true);
-      }
       if (res.error) {
         setError(res.error);
         return;
@@ -156,6 +159,11 @@ export function InstagramImportPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <p className="mb-3 text-sm text-muted">
+          Hesaptaki gönderileri çeker: <strong className="text-foreground">fotoğraf, video, carousel, açıklama</strong>.
+          Listeden hangisini istersen seçip portföye aktarırsın.
+        </p>
+
         <label className="block text-xs text-muted">
           Instagram kullanıcı adı
           <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
@@ -173,7 +181,7 @@ export function InstagramImportPanel({
                   }
                 }}
                 className="w-full rounded-xl border border-border bg-muted-bg py-2.5 pr-4 pl-8 text-sm text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
-                placeholder="studionuz"
+                placeholder="dugunoncesikareler"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -189,7 +197,7 @@ export function InstagramImportPanel({
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Gönderileri getir
+              Tüm gönderileri getir
             </button>
           </div>
         </label>
@@ -200,9 +208,8 @@ export function InstagramImportPanel({
           className="mt-3 flex w-full items-center justify-between rounded-xl border border-border bg-muted-bg/50 px-3 py-2 text-left text-xs text-muted hover:border-accent/40"
         >
           <span>
-            Bot engelini aşmak için (önerilir): tarayıcı{" "}
-            <strong className="text-foreground">sessionid</strong> çerezi
-            {sessionCookie.trim() ? " · kayıtlı" : ""}
+            sessionid (tüm feed için önerilir)
+            {sessionCookie.trim() ? " · kayıtlı ✓" : " · eklenmedi"}
           </span>
           <ChevronDown
             className={cn(
@@ -215,54 +222,34 @@ export function InstagramImportPanel({
         {showSession && (
           <div className="mt-2 space-y-2 rounded-xl border border-border bg-muted-bg/30 p-3">
             <p className="text-[11px] leading-relaxed text-muted">
-              1) Chrome’da{" "}
-              <a
-                href="https://www.instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
-              >
-                instagram.com
-              </a>{" "}
-              hesabınıza giriş yapın
+              Tüm sayfaları (yüzlerce gönderi) çekmek için tarayıcı oturumu
+              gerekir:
               <br />
-              2) F12 → Application → Cookies → https://www.instagram.com
-              <br />
-              3) <code className="text-foreground">sessionid</code> satırının
-              Value değerini kopyalayıp aşağı yapıştırın
-              <br />
-              4) Bu değer yalnızca bu tarayıcı oturumunda saklanır (sunucuya
-              kalıcı yazılmaz)
+              Chrome → instagram.com giriş → F12 → Application → Cookies →{" "}
+              <code className="text-foreground">sessionid</code> değeri
             </p>
             <input
               value={sessionCookie}
               onChange={(e) => persistSession(e.target.value)}
               className="w-full rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
-              placeholder="sessionid değeri veya sessionid=..."
+              placeholder="sessionid değeri"
               autoComplete="off"
               spellCheck={false}
             />
-            {sessionCookie.trim() && (
-              <button
-                type="button"
-                onClick={() => persistSession("")}
-                className="text-[11px] text-danger hover:underline"
-              >
-                sessionid’yi temizle
-              </button>
-            )}
           </div>
         )}
 
-        <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
-            checked={onlyWedding}
-            onChange={(e) => setOnlyWedding(e.target.checked)}
-            className="h-4 w-4 accent-[var(--accent)]"
-          />
-          Sadece düğün / nişan sinyali olanlar (açıklamadan)
-        </label>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <label className="inline-flex items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              checked={onlyWedding}
+              onChange={(e) => setOnlyWedding(e.target.checked)}
+              className="h-4 w-4 accent-[var(--accent)]"
+            />
+            Sadece düğün/nişan etiketli olanları listele
+          </label>
+        </div>
       </div>
 
       {error && (
@@ -278,88 +265,76 @@ export function InstagramImportPanel({
       )}
 
       {debug && (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <button
             type="button"
             onClick={() => setDebugOpen((o) => !o)}
             className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm"
           >
             <span className="font-medium text-foreground">
-              Teknik detay / Instagram yanıtı
+              Teknik detay · {debug.summary}
             </span>
-            <span className="text-xs text-muted">
-              {debug.usedSession ? "sessionid kullanıldı" : "sessionid yok"} ·{" "}
-              {debug.attempts.length} adım
-            </span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted transition",
+                debugOpen && "rotate-180",
+              )}
+            />
           </button>
           {debugOpen && (
-            <div className="space-y-3 border-t border-border px-4 py-3 text-xs">
-              <p className="text-muted">
-                <strong className="text-foreground">Özet:</strong>{" "}
-                {debug.summary}
-              </p>
-              {debug.tips.length > 0 && (
-                <ul className="list-disc space-y-1 pl-4 text-muted">
-                  {debug.tips.map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="space-y-2">
-                {debug.attempts.map((a, i) => (
-                  <div
-                    key={`${a.step}-${i}`}
-                    className={cn(
-                      "rounded-xl border px-3 py-2",
-                      a.ok
-                        ? "border-success/30 bg-success/5"
-                        : "border-border bg-muted-bg/50",
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                          a.ok
-                            ? "bg-success/20 text-success"
-                            : "bg-danger/15 text-danger",
-                        )}
-                      >
-                        {a.ok ? "OK" : "FAIL"}
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {a.step}
-                      </span>
-                      {a.status != null && (
-                        <span className="text-muted">HTTP {a.status}</span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-muted">{a.detail}</p>
-                    {a.bodyPreview && (
-                      <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-background/80 p-2 font-mono text-[10px] leading-relaxed text-muted">
-                        {a.bodyPreview}
-                      </pre>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="space-y-2 border-t border-border px-4 py-3 text-xs">
+              {debug.tips.map((t) => (
+                <p key={t} className="text-muted">
+                  • {t}
+                </p>
+              ))}
+              {debug.attempts.map((a, i) => (
+                <div
+                  key={`${a.step}-${i}`}
+                  className={cn(
+                    "rounded-lg border px-2 py-1.5",
+                    a.ok
+                      ? "border-success/30 bg-success/5"
+                      : "border-border bg-muted-bg/40",
+                  )}
+                >
+                  <span className={a.ok ? "text-success" : "text-danger"}>
+                    {a.ok ? "OK" : "FAIL"}
+                  </span>{" "}
+                  <strong>{a.step}</strong>
+                  {a.status != null ? ` · HTTP ${a.status}` : ""} — {a.detail}
+                  {a.bodyPreview && (
+                    <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] text-muted">
+                      {a.bodyPreview}
+                    </pre>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
       {items.length > 0 && (
-        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card p-4">
+        <div className="sticky top-2 z-10 flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-sm backdrop-blur">
           <p className="w-full text-sm text-muted">
-            @{loadedUser} · Görünen: {visible.length} · Seçili:{" "}
-            {selectedIds.length}
+            @{loadedUser} · Toplam {items.length} gönderi · Listede{" "}
+            {visible.length} · Seçili{" "}
+            <strong className="text-foreground">{selectedItems.length}</strong>
           </p>
           <button
             type="button"
             onClick={selectAllVisible}
-            className="rounded-full border border-border px-4 py-2 text-xs text-foreground hover:border-accent"
+            className="rounded-full border border-border px-4 py-2 text-xs hover:border-accent"
           >
-            Görünenleri seç
+            Listedekilerin tümünü seç
+          </button>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="rounded-full border border-border px-4 py-2 text-xs text-muted hover:text-foreground"
+          >
+            Seçimi temizle
           </button>
           <label className="text-xs text-muted">
             Kategori
@@ -387,24 +362,22 @@ export function InstagramImportPanel({
           </label>
           <button
             type="button"
-            disabled={pending || selectedIds.length === 0}
+            disabled={pending || selectedItems.length === 0}
             onClick={importSelected}
             className="ml-auto inline-flex h-11 items-center rounded-full bg-accent px-5 text-sm font-medium text-white disabled:opacity-50"
           >
-            {pending ? "Aktarılıyor…" : `Portföye aktar (${selectedIds.length})`}
+            {pending
+              ? "Aktarılıyor…"
+              : `Seçilenleri portföye aktar (${selectedItems.length})`}
           </button>
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {visible.map((item) => {
-          const thumb =
-            item.thumbnailUrl ||
-            item.mediaUrl ||
-            item.children[0]?.mediaUrl ||
-            "";
-          const isVideo = item.mediaType === "VIDEO";
+          const thumb = item.thumbnailUrl || item.mediaUrl || "";
           const checked = Boolean(selected[item.id]);
+          const mediaCount = item.mediaUrls?.length || 1;
           return (
             <button
               key={item.id}
@@ -429,40 +402,50 @@ export function InstagramImportPanel({
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-muted">
                     <Camera className="mr-1 h-4 w-4" />
-                    Önizleme yok
+                    Medya
                   </div>
                 )}
-                {isVideo && (
-                  <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">
-                    <Film className="h-3 w-3" />
-                    Video
-                  </span>
-                )}
-                {item.looksLikeWedding && (
-                  <span className="absolute top-2 left-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-white">
-                    Düğün?
-                  </span>
-                )}
+                <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+                  {item.mediaType === "VIDEO" && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-black/75 px-2 py-0.5 text-[10px] text-white">
+                      <Film className="h-3 w-3" />
+                      Video
+                    </span>
+                  )}
+                  {item.mediaType === "CAROUSEL_ALBUM" && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-black/75 px-2 py-0.5 text-[10px] text-white">
+                      <Images className="h-3 w-3" />
+                      {mediaCount}
+                    </span>
+                  )}
+                  {item.looksLikeWedding && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-white">
+                      Düğün?
+                    </span>
+                  )}
+                </div>
                 <span
                   className={cn(
-                    "absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full border text-xs",
+                    "absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full border text-sm",
                     checked
                       ? "border-accent bg-accent text-white"
-                      : "border-white/80 bg-black/40 text-white",
+                      : "border-white/80 bg-black/45 text-white",
                   )}
                 >
                   {checked ? "✓" : ""}
                 </span>
               </div>
-              <div className="p-3">
-                <p className="line-clamp-2 text-xs text-muted">
-                  {item.caption || "(Açıklama yok)"}
+              <div className="space-y-1 p-3">
+                <p className="line-clamp-3 text-xs leading-relaxed text-muted">
+                  {item.caption?.trim() || "(Açıklama yok)"}
                 </p>
-                <p className="mt-1 text-[10px] text-muted">
+                <p className="text-[10px] text-muted">
                   {item.categoryGuess}
                   {item.timestamp
                     ? ` · ${new Date(item.timestamp).toLocaleDateString("tr-TR")}`
                     : ""}
+                  {mediaCount > 1 ? ` · ${mediaCount} medya` : ""}
+                  {item.mediaType === "VIDEO" ? " · video" : ""}
                 </p>
               </div>
             </button>

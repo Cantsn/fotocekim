@@ -1092,7 +1092,7 @@ export async function testSmtpAction(): Promise<ActionState> {
   return { ok: true, message: "SMTP bağlantısı başarılı." };
 }
 
-// ---------- Instagram → Portföy (kullanıcı adı + opsiyonel sessionid) ----------
+// ---------- Instagram → Portföy ----------
 export async function loadInstagramFeedAction(
   formData: FormData,
 ): Promise<{
@@ -1108,7 +1108,8 @@ export async function loadInstagramFeedAction(
   if (!username) return { error: "Instagram kullanıcı adı girin." };
 
   const sessionCookie = String(formData.get("sessionCookie") ?? "");
-  const result = await fetchInstagramByUsername(username, 40, {
+  // Tüm (veya çok sayıda) gönderi: foto + video + açıklama
+  const result = await fetchInstagramByUsername(username, 250, {
     sessionCookie,
   });
   if (result.error) {
@@ -1127,55 +1128,53 @@ export async function loadInstagramFeedAction(
 
 export async function importInstagramMediaAction(
   formData: FormData,
-): Promise<ActionState & { debug?: Awaited<ReturnType<typeof fetchInstagramByUsername>>["debug"] }> {
+): Promise<ActionState> {
   await requirePermission("portfolio");
 
-  const username = normalizeInstagramUsername(
-    String(formData.get("username") ?? ""),
-  );
-  const sessionCookie = String(formData.get("sessionCookie") ?? "");
-  const ids = formData
-    .getAll("mediaId")
-    .map((v) => String(v))
-    .filter(Boolean);
-  if (!username) return { error: "Instagram kullanıcı adı gerekli." };
-  if (ids.length === 0) {
+  // Seçilen gönderilerin tam verisi client’tan gelir (Instagram’a tekrar gitmez)
+  const rawPayload = String(formData.get("itemsJson") ?? "");
+  let selected: Awaited<
+    ReturnType<typeof fetchInstagramByUsername>
+  >["items"] = [];
+  try {
+    const parsed = JSON.parse(rawPayload) as unknown;
+    if (!Array.isArray(parsed)) throw new Error("itemsJson dizi değil");
+    selected = parsed as typeof selected;
+  } catch {
+    return {
+      error:
+        "Seçim verisi okunamadı. Gönderileri yeniden getirip tekrar seçin.",
+    };
+  }
+
+  if (selected.length === 0) {
     return { error: "En az bir gönderi seçin." };
   }
 
   const published = parseBool(formData.get("published"));
   const forceCategory = String(formData.get("category") ?? "").trim();
 
-  const feed = await fetchInstagramByUsername(username, 50, { sessionCookie });
-  if (feed.error) {
-    return { error: feed.error, debug: feed.debug };
-  }
-
-  const selected = feed.items.filter((i) => ids.includes(i.id));
-  if (selected.length === 0) {
-    return {
-      error:
-        "Seçilen gönderiler listede bulunamadı. Tekrar getirip seçin.",
-    };
-  }
-
   let imported = 0;
   const errors: string[] = [];
 
   for (const item of selected) {
     try {
-      const analysis = analyzeCaption(item.caption);
+      if (!item?.id) continue;
+      const analysis = analyzeCaption(item.caption || "");
       const category =
         forceCategory && forceCategory !== "auto"
           ? forceCategory
-          : analysis.categoryGuess;
-      const title = analysis.title.slice(0, 100);
-      let slug = slugify(title) || `ig-${item.id.slice(-8)}`;
+          : item.categoryGuess || analysis.categoryGuess;
+      const title = (analysis.title || item.caption || `IG ${item.id}`).slice(
+        0,
+        100,
+      );
+      let slug = slugify(title) || `ig-${String(item.id).slice(-8)}`;
       const clash = await prisma.project.findUnique({ where: { slug } });
-      if (clash) slug = `${slug}-${item.id.slice(-6)}`;
+      if (clash) slug = `${slug}-${String(item.id).slice(-6)}`;
 
       const description = [
-        item.caption?.trim() || "",
+        (item.caption || "").trim(),
         item.permalink ? `\n\nKaynak: ${item.permalink}` : "",
       ]
         .join("")
@@ -1190,12 +1189,12 @@ export async function importInstagramMediaAction(
       }
 
       const saved: string[] = [];
-      for (const remote of urls.slice(0, 20)) {
+      for (const remote of urls.slice(0, 30)) {
         try {
           const { url } = await saveRemoteMedia(remote);
           saved.push(url);
         } catch {
-          // tek dosya hatası — diğerlerine devam
+          // tek dosya hatası
         }
       }
       if (saved.length === 0) {
@@ -1203,13 +1202,16 @@ export async function importInstagramMediaAction(
         continue;
       }
 
-      const project = await prisma.project.create({
+      // Kapak: ilk görsel tercihen
+      const coverUrl = saved[0];
+
+      await prisma.project.create({
         data: {
           title,
           slug,
           description,
           category,
-          coverUrl: saved[0],
+          coverUrl,
           date,
           published,
           featured: false,
@@ -1223,7 +1225,6 @@ export async function importInstagramMediaAction(
           },
         },
       });
-      void project;
       imported += 1;
     } catch (e) {
       errors.push(e instanceof Error ? e.message : "Kayıt hatası");
@@ -1238,14 +1239,14 @@ export async function importInstagramMediaAction(
     return {
       error:
         errors[0] ||
-        "Hiçbir gönderi aktarılamadı. Token izinlerini ve medya erişimini kontrol edin.",
+        "Hiçbir gönderi aktarılamadı. Medya indirme veya seçim hatası.",
     };
   }
 
   return {
     ok: true,
     message: `${imported} proje portföye aktarıldı.${
-      errors.length ? ` ${errors.length} hata.` : ""
+      errors.length ? ` ${errors.length} hata atlandı.` : ""
     }`,
   };
 }
