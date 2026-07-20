@@ -2,6 +2,13 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+/** Yüklenen veya harici medya URL'sinin video olup olmadığını dosya uzantısından anlar */
+export function isVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const path = url.split("?")[0].split("#")[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v|ogg)$/.test(path);
+}
+
 export function whatsappUrl(phone: string, text?: string) {
   const digits = phone.replace(/\D/g, "");
   const base = `https://wa.me/${digits}`;

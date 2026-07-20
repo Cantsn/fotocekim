@@ -3,6 +3,7 @@ import { guardAdminPage } from "@/lib/admin-guard";
 import { getAllServices } from "@/lib/data";
 import { deleteServiceAction } from "@/lib/actions/admin";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +40,12 @@ export default async function AdminHizmetlerPage() {
             className="overflow-hidden rounded-2xl border border-border bg-card"
           >
             {s.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <MediaThumb
                 src={s.coverUrl}
                 alt={s.title}
-                className="aspect-video w-full object-cover"
+                className="aspect-video w-full"
+                autoPlay
+                controls={false}
               />
             ) : (
               <MediaPlaceholder label="Görsel yok" aspect="video" />
@@ -53,7 +55,7 @@ export default async function AdminHizmetlerPage() {
                 <div>
                   <h2 className="font-medium text-foreground">{s.title}</h2>
                   <p className="mt-0.5 text-xs text-muted">
-                    /{s.slug} · {s.images.length} galeri
+                    /{s.slug} · {s.images.length} medya
                     {s.published ? " · Yayında" : " · Taslak"}
                   </p>
                 </div>

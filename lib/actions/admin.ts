@@ -16,6 +16,7 @@ import {
   saveUploadedMedia,
   slugify,
 } from "@/lib/upload";
+// saveUploadedMedia: galeri/kapak için foto + video
 import { testSmtpConnection } from "@/lib/mail";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
@@ -253,7 +254,7 @@ export async function uploadServiceImagesAction(formData: FormData) {
   try {
     for (const item of files) {
       if (item instanceof File && item.size > 0) {
-        const url = await saveUploadedImage(item);
+        const { url } = await saveUploadedMedia(item);
         await prisma.serviceImage.create({
           data: {
             serviceId,
@@ -263,7 +264,7 @@ export async function uploadServiceImagesAction(formData: FormData) {
           },
         });
         uploaded += 1;
-        // İlk görsel kapak yoksa kapak olsun
+        // İlk medya kapak yoksa kapak olsun
         if (!service.coverUrl && uploaded === 1) {
           await prisma.service.update({
             where: { id: serviceId },
@@ -277,7 +278,7 @@ export async function uploadServiceImagesAction(formData: FormData) {
   }
   revalidatePublic();
   revalidatePath(`/admin/hizmetler/${serviceId}`);
-  return { ok: true, message: `${uploaded} görsel yüklendi` };
+  return { ok: true, message: `${uploaded} medya yüklendi` };
 }
 
 export async function uploadServiceCoverAction(formData: FormData) {
@@ -289,9 +290,14 @@ export async function uploadServiceCoverAction(formData: FormData) {
     return { error: "Dosya seçin." };
   }
   try {
-    const url = await saveUploadedImage(file);
+    const { url } = await saveUploadedMedia(file);
     const prev = await prisma.service.findUnique({ where: { id: serviceId } });
-    if (prev?.coverUrl) await deleteUploadedFile(prev.coverUrl);
+    if (prev?.coverUrl) {
+      const inGallery = await prisma.serviceImage.findFirst({
+        where: { serviceId, url: prev.coverUrl },
+      });
+      if (!inGallery) await deleteUploadedFile(prev.coverUrl);
+    }
     await prisma.service.update({
       where: { id: serviceId },
       data: { coverUrl: url },
@@ -625,7 +631,7 @@ export async function uploadProjectImagesAction(formData: FormData) {
   try {
     for (const item of files) {
       if (item instanceof File && item.size > 0) {
-        const url = await saveUploadedImage(item);
+        const { url } = await saveUploadedMedia(item);
         await prisma.projectImage.create({
           data: {
             projectId,
@@ -648,7 +654,7 @@ export async function uploadProjectImagesAction(formData: FormData) {
   }
   revalidatePublic();
   revalidatePath(`/admin/portfolyo/${projectId}`);
-  return { ok: true, message: `${uploaded} görsel yüklendi` };
+  return { ok: true, message: `${uploaded} medya yüklendi` };
 }
 
 export async function uploadProjectCoverAction(formData: FormData) {
@@ -660,7 +666,7 @@ export async function uploadProjectCoverAction(formData: FormData) {
     return { error: "Dosya seçin." };
   }
   try {
-    const url = await saveUploadedImage(file);
+    const { url } = await saveUploadedMedia(file);
     const prev = await prisma.project.findUnique({ where: { id: projectId } });
     if (prev?.coverUrl) {
       const inGallery = await prisma.projectImage.findFirst({

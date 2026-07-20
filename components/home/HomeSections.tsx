@@ -20,6 +20,7 @@ import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ButtonLink } from "@/components/ui/Button";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 import { HomeInteractive } from "@/components/home/HomeInteractive";
 import { PackageCard } from "@/components/packages/PackageCard";
 
@@ -123,11 +124,12 @@ export async function ServicesSection() {
                 className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/50"
               >
                 {s.coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <MediaThumb
                     src={s.coverUrl}
                     alt={s.title}
-                    className="aspect-video w-full object-cover transition group-hover:opacity-95"
+                    className="aspect-video w-full transition group-hover:opacity-95"
+                    autoPlay
+                    controls={false}
                   />
                 ) : (
                   <MediaPlaceholder label={s.title} aspect="video" icon={false} />

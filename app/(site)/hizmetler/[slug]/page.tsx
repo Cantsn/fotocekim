@@ -5,6 +5,7 @@ import { getPublishedServices, getServiceBySlug } from "@/lib/data";
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 import { InquiryForm } from "@/components/forms/InquiryForm";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -42,11 +43,12 @@ export default async function HizmetDetailPage({ params }: Props) {
     <div>
       <div className="relative">
         {service.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <MediaThumb
             src={service.coverUrl}
             alt={service.title}
-            className="min-h-[36vh] w-full object-cover aspect-[21/9] sm:min-h-[42vh]"
+            className="min-h-[36vh] w-full aspect-[21/9] sm:min-h-[42vh]"
+            autoPlay
+            controls={false}
           />
         ) : (
           <MediaPlaceholder
@@ -109,12 +111,13 @@ export default async function HizmetDetailPage({ params }: Props) {
               <div className="grid gap-3 pt-4 sm:grid-cols-2">
                 {gallery.length > 0
                   ? gallery.map((img) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <MediaThumb
                         key={img.id}
                         src={img.url}
                         alt={img.alt || service.title}
-                        className="aspect-video w-full rounded-xl object-cover"
+                        className="aspect-video w-full rounded-xl"
+                        autoPlay={false}
+                        controls
                       />
                     ))
                   : [1, 2, 3, 4].map((n) => (

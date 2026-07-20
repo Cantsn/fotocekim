@@ -3,6 +3,7 @@ import { guardAdminPage } from "@/lib/admin-guard";
 import { categoryLabel, getAllProjects } from "@/lib/data";
 import { deleteProjectAction } from "@/lib/actions/admin";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,13 @@ export default async function AdminPortfolyoPage() {
         {projects.map((p) => (
           <div key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card">
             {p.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.coverUrl} alt={p.title} className="aspect-video w-full object-cover" />
+              <MediaThumb
+                src={p.coverUrl}
+                alt={p.title}
+                className="aspect-video w-full"
+                autoPlay
+                controls={false}
+              />
             ) : (
               <MediaPlaceholder label={p.title} aspect="video" />
             )}
@@ -44,7 +50,7 @@ export default async function AdminPortfolyoPage() {
               </p>
               <p className="mt-1 text-xs text-muted">
                 {p.published ? "Yayında" : "Taslak"}
-                {p.featured ? " · Öne çıkan" : ""} · {p.images.length} foto
+                {p.featured ? " · Öne çıkan" : ""} · {p.images.length} medya
               </p>
               <div className="mt-3 flex gap-3">
                 <Link

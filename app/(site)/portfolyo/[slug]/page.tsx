@@ -9,6 +9,7 @@ import {
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -47,11 +48,12 @@ export default async function ProjectDetailPage({ params }: Props) {
     <div>
       <div className="relative">
         {project.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <MediaThumb
             src={project.coverUrl}
             alt={project.title}
-            className="min-h-[48vh] w-full object-cover aspect-[21/9]"
+            className="min-h-[48vh] w-full aspect-[21/9]"
+            autoPlay
+            controls={false}
           />
         ) : (
           <MediaPlaceholder
@@ -92,12 +94,13 @@ export default async function ProjectDetailPage({ params }: Props) {
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {gallery
             ? gallery.map((img) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <MediaThumb
                   key={img.id}
                   src={img.url}
                   alt={img.alt || project.title}
-                  className="aspect-video w-full rounded-xl object-cover"
+                  className="aspect-video w-full rounded-xl"
+                  autoPlay={false}
+                  controls
                 />
               ))
             : Array.from({ length: 6 }).map((_, i) => (

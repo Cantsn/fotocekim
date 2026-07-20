@@ -8,6 +8,7 @@ import {
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -60,11 +61,12 @@ export default async function PortfolyoPage({ searchParams }: Props) {
                 className="group overflow-hidden rounded-2xl border border-border bg-card"
               >
                 {p.coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <MediaThumb
                     src={p.coverUrl}
                     alt={p.title}
-                    className="aspect-video w-full object-cover transition group-hover:opacity-90"
+                    className="aspect-video w-full transition group-hover:opacity-90"
+                    autoPlay
+                    controls={false}
                   />
                 ) : (
                   <MediaPlaceholder label={p.title} aspect="video" />

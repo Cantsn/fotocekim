@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 import { HorizontalSlider } from "@/components/ui/Slider";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 
 type PortfolioItem = {
   id: string;
@@ -40,11 +41,12 @@ export function HomeInteractive({
             className="group block overflow-hidden rounded-2xl border border-border bg-card"
           >
             {p.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <MediaThumb
                 src={p.coverUrl}
                 alt={p.title}
-                className="aspect-[4/3] w-full object-cover transition group-hover:opacity-90"
+                className="aspect-[4/3] w-full transition group-hover:opacity-90"
+                autoPlay
+                controls={false}
               />
             ) : (
               <MediaPlaceholder label={p.title} aspect="video" />

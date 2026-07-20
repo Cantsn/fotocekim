@@ -5,6 +5,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { MediaPlaceholder } from "@/components/media/MediaPlaceholder";
+import { MediaThumb } from "@/components/media/MediaThumb";
 
 export const metadata: Metadata = {
   title: "Hizmetler / Services",
@@ -34,11 +35,12 @@ export default async function HizmetlerPage() {
               className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/40"
             >
               {s.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <MediaThumb
                   src={s.coverUrl}
                   alt={s.title}
-                  className="aspect-video w-full object-cover transition group-hover:opacity-95"
+                  className="aspect-video w-full transition group-hover:opacity-95"
+                  autoPlay
+                  controls={false}
                 />
               ) : (
                 <MediaPlaceholder label={s.title} aspect="video" />

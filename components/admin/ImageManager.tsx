@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  Film,
   ImagePlus,
   Loader2,
   Star,
@@ -35,7 +36,7 @@ import {
   uploadServiceCoverAction,
   uploadServiceImagesAction,
 } from "@/lib/actions/admin";
-import { cn } from "@/lib/utils";
+import { cn, isVideoUrl } from "@/lib/utils";
 
 export type ManagedImage = {
   id: string;
@@ -45,6 +46,9 @@ export type ManagedImage = {
 };
 
 type Kind = "service" | "project";
+
+const ACCEPT =
+  "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
 
 const actions = {
   service: {
@@ -66,6 +70,39 @@ const actions = {
     updateAlt: updateProjectImageAltAction,
   },
 } as const;
+
+function Preview({
+  url,
+  alt,
+  className,
+}: {
+  url: string;
+  alt?: string;
+  className?: string;
+}) {
+  if (isVideoUrl(url)) {
+    return (
+      <video
+        src={url}
+        className={cn("h-full w-full object-cover", className)}
+        muted
+        playsInline
+        loop
+        autoPlay
+        preload="metadata"
+        aria-label={alt}
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={alt || ""}
+      className={cn("h-full w-full object-cover", className)}
+    />
+  );
+}
 
 export function ImageManager({
   kind,
@@ -143,10 +180,11 @@ export function ImageManager({
         <div>
           <h2 className="flex items-center gap-2 font-serif text-xl text-foreground">
             <ImagePlus className="h-5 w-5 text-accent" />
-            Görseller
+            Medya (fotoğraf & video)
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Kapak ve galeri fotoğraflarını buradan yükleyin, sıralayın veya silin.
+            Kapak ve galeri için fotoğraf veya video yükleyin, sıralayın,
+            silin.
             {title ? ` · ${title}` : ""}
           </p>
         </div>
@@ -172,28 +210,29 @@ export function ImageManager({
       {/* Cover */}
       <div>
         <p className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">
-          Kapak görseli
+          Kapak (foto / video)
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-xl border border-border bg-muted-bg">
             {coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={coverUrl}
-                alt="Kapak"
-                className="h-full w-full object-cover"
-              />
+              <Preview url={coverUrl} alt="Kapak" />
             ) : (
               <div className="flex h-full min-h-[140px] items-center justify-center text-sm text-muted">
                 Kapak seçilmedi
               </div>
+            )}
+            {coverUrl && isVideoUrl(coverUrl) && (
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">
+                <Film className="h-3 w-3" />
+                Video
+              </span>
             )}
           </div>
           <div className="flex flex-col gap-2 sm:justify-center">
             <input
               ref={coverInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept={ACCEPT}
               className="hidden"
               onChange={(e) => {
                 onCoverChange(e.target.files);
@@ -227,8 +266,8 @@ export function ImageManager({
               </button>
             )}
             <p className="max-w-xs text-xs text-muted">
-              JPG, PNG, WebP veya GIF · en fazla 12MB. Galeriden de kapak
-              seçebilirsiniz.
+              Foto: JPG/PNG/WebP/GIF · max 12MB · Video: MP4/WebM/MOV · max
+              80MB. Galeriden de kapak seçebilirsiniz.
             </p>
           </div>
         </div>
@@ -255,13 +294,13 @@ export function ImageManager({
         >
           <Upload className="mb-2 h-8 w-8 text-accent" />
           <p className="text-sm font-medium text-foreground">
-            Fotoğrafları buraya sürükleyin
+            Fotoğraf veya video sürükleyin
           </p>
-          <p className="mt-1 text-xs text-muted">veya çoklu seçim yapın</p>
+          <p className="mt-1 text-xs text-muted">çoklu seçim desteklenir</p>
           <input
             ref={galleryInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={ACCEPT}
             multiple
             className="hidden"
             onChange={(e) => {
@@ -283,31 +322,35 @@ export function ImageManager({
       {/* Grid */}
       {sorted.length === 0 ? (
         <p className="rounded-xl border border-border bg-muted-bg px-4 py-6 text-center text-sm text-muted">
-          Henüz galeri görseli yok. Yukarıdan yükleyin.
+          Henüz galeri medyası yok. Yukarıdan yükleyin.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {sorted.map((img, index) => {
             const isCover = coverUrl === img.url;
+            const video = isVideoUrl(img.url);
             return (
               <div
                 key={img.id}
                 className={cn(
                   "group overflow-hidden rounded-xl border bg-muted-bg",
-                  isCover ? "border-accent ring-1 ring-accent/40" : "border-border",
+                  isCover
+                    ? "border-accent ring-1 ring-accent/40"
+                    : "border-border",
                 )}
               >
                 <div className="relative aspect-square">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.url}
-                    alt={img.alt || "Galeri"}
-                    className="h-full w-full object-cover"
-                  />
+                  <Preview url={img.url} alt={img.alt || "Galeri"} />
                   {isCover && (
                     <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-white">
                       <Star className="h-3 w-3 fill-current" />
                       Kapak
+                    </span>
+                  )}
+                  {video && (
+                    <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">
+                      <Film className="h-3 w-3" />
+                      Video
                     </span>
                   )}
                   <div className="absolute inset-x-0 bottom-0 flex justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
@@ -363,7 +406,8 @@ export function ImageManager({
                         label="Sil"
                         danger
                         onClick={() => {
-                          if (!confirm("Bu görseli silmek istiyor musunuz?")) return;
+                          if (!confirm("Bu medyayı silmek istiyor musunuz?"))
+                            return;
                           const fd = new FormData();
                           fd.set("imageId", img.id);
                           run(async () => {
@@ -390,7 +434,7 @@ export function ImageManager({
                   <input
                     name="alt"
                     defaultValue={img.alt}
-                    placeholder="Alt metin"
+                    placeholder="Alt metin / açıklama"
                     className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
                     onBlur={(e) => {
                       if (e.target.value === img.alt) return;
