@@ -447,58 +447,228 @@ function webHeaders(cookie: string, json: boolean): Record<string, string> {
   return h;
 }
 
+/** Ham feed JSON → gönderi listesi (birçok Instagram formatı) */
+function parseFeedPayload(data: unknown): {
+  items: IgMediaItem[];
+  more: boolean;
+  nextMaxId?: string;
+  meta: string;
+} {
+  const map = new Map<string, IgMediaItem>();
+  const root = (data && typeof data === "object" ? data : {}) as Record<
+    string,
+    unknown
+  >;
+
+  const pushRaw = (raw: unknown) => {
+    if (!raw || typeof raw !== "object") return;
+    const o = raw as Record<string, unknown>;
+    // Sarmalayıcılar
+    const media =
+      (o.media as Record<string, unknown>) ||
+      (o.media_or_ad as Record<string, unknown>) ||
+      (o.item as Record<string, unknown>) ||
+      o;
+    let item = postObjectToItem(media);
+    if (!item) {
+      // Gevşek: içinden URL topla
+      const blob = JSON.stringify(media);
+      const urls = [
+        ...blob.matchAll(
+          /https:\\\/\\\/[^"\\]+(?:cdninstagram|fbcdn)[^"\\]*/g,
+        ),
+      ]
+        .map((m) => unescapeIgUrl(m[0].replace(/\\/g, "")))
+        .filter((u) => !u.includes("rsrc.php"));
+      const unique = [...new Set(urls)].slice(0, 12);
+      if (unique.length) {
+        const id = String(
+          media.id || media.pk || media.code || media.shortcode || unique[0],
+        );
+        const analysis = analyzeCaption(captionFrom(media));
+        item = {
+          id,
+          caption: captionFrom(media),
+          mediaType: unique.some((u) => /\.mp4|video/.test(u))
+            ? "VIDEO"
+            : "IMAGE",
+          mediaUrl: unique[0],
+          thumbnailUrl: unique[0],
+          mediaUrls: unique,
+          children: [],
+          looksLikeWedding: analysis.looksLikeWedding,
+          categoryGuess: analysis.categoryGuess,
+          permalink:
+            typeof media.code === "string"
+              ? `https://www.instagram.com/p/${media.code}/`
+              : undefined,
+        };
+      }
+    }
+    if (item && !map.has(item.id)) map.set(item.id, item);
+  };
+
+  if (Array.isArray(root.items)) {
+    for (const it of root.items) pushRaw(it);
+  }
+  if (Array.isArray(root.feed_items)) {
+    for (const it of root.feed_items) pushRaw(it);
+  }
+  if (Array.isArray(root.num_results as unknown)) {
+    // ignore
+  }
+  // nested user.edge...
+  walkCollectPosts(data, map);
+
+  const more = Boolean(root.more_available);
+  const nextMaxId =
+    typeof root.next_max_id === "string"
+      ? root.next_max_id
+      : typeof root.next_max_id === "number"
+        ? String(root.next_max_id)
+        : undefined;
+
+  const keys = Object.keys(root).slice(0, 20).join(", ");
+  return {
+    items: [...map.values()],
+    more,
+    nextMaxId,
+    meta: `keys=[${keys}] rawItems=${Array.isArray(root.items) ? root.items.length : 0} parsed=${map.size}`,
+  };
+}
+
+async function verifyUserId(
+  userId: string,
+  expectUsername: string,
+  cookie: string,
+  logs: IgAttemptLog[],
+): Promise<{ ok: boolean; cookie: string }> {
+  try {
+    const res = await fetch(
+      `https://i.instagram.com/api/v1/users/${encodeURIComponent(userId)}/info/`,
+      {
+        headers: appHeaders(cookie),
+        signal: AbortSignal.timeout(15_000),
+        cache: "no-store",
+      },
+    );
+    const text = await res.text();
+    cookie = mergeCookieHeader(cookie, getSetCookies(res));
+    if (!res.ok) {
+      logs.push({
+        step: "User ID doğrula",
+        ok: false,
+        status: res.status,
+        detail: `info HTTP ${res.status}`,
+        bodyPreview: previewBody(text),
+      });
+      // 404 vb. — yine de feed dene
+      return { ok: res.status !== 404, cookie };
+    }
+    try {
+      const data = JSON.parse(text) as {
+        user?: { username?: string; pk?: number | string };
+      };
+      const uname = (data.user?.username || "").toLowerCase();
+      const match = uname === expectUsername.toLowerCase();
+      logs.push({
+        step: "User ID doğrula",
+        ok: match,
+        status: res.status,
+        detail: match
+          ? `@${uname} eşleşti`
+          : `Beklenen @${expectUsername}, gelen @${uname || "?"}`,
+        bodyPreview: previewBody(text),
+      });
+      return { ok: match || !uname, cookie };
+    } catch {
+      logs.push({
+        step: "User ID doğrula",
+        ok: false,
+        status: res.status,
+        detail: "JSON parse",
+        bodyPreview: previewBody(text),
+      });
+      return { ok: true, cookie };
+    }
+  } catch (e) {
+    logs.push({
+      step: "User ID doğrula",
+      ok: false,
+      detail: e instanceof Error ? e.message : "Hata",
+    });
+    return { ok: true, cookie };
+  }
+}
+
 async function resolveUserId(
   username: string,
   cookie: string,
   logs: IgAttemptLog[],
 ): Promise<{ userId?: string; cookie: string }> {
-  // web_profile_info
-  try {
-    const url = `https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
-    const res = await fetch(url, {
-      headers: appHeaders(cookie),
-      signal: AbortSignal.timeout(20_000),
-      cache: "no-store",
-    });
-    const text = await res.text();
-    cookie = mergeCookieHeader(cookie, getSetCookies(res));
-    if (res.ok) {
-      try {
-        const data = JSON.parse(text) as {
-          data?: { user?: { id?: string; pk?: string | number } };
-        };
-        const id =
-          data.data?.user?.id ||
-          (data.data?.user?.pk != null ? String(data.data.user.pk) : undefined);
-        if (id) {
-          logs.push({
-            step: "Kullanıcı ID",
-            ok: true,
-            status: res.status,
-            detail: `user id = ${id}`,
-          });
-          return { userId: id, cookie };
-        }
-      } catch {
-        // fallthrough
+  const candidates: string[] = [];
+
+  // 1) web_profile_info (app + web host)
+  for (const host of ["i.instagram.com", "www.instagram.com"] as const) {
+    try {
+      const url = `https://${host}/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
+      const res = await fetch(url, {
+        headers: host.startsWith("i.") ? appHeaders(cookie) : webHeaders(cookie, true),
+        signal: AbortSignal.timeout(20_000),
+        cache: "no-store",
+      });
+      const text = await res.text();
+      cookie = mergeCookieHeader(cookie, getSetCookies(res));
+      if (res.status === 429) {
+        logs.push({
+          step: `Kullanıcı ID (${host})`,
+          ok: false,
+          status: 429,
+          detail: "Rate limit",
+          bodyPreview: previewBody(text),
+        });
+        continue;
       }
+      if (res.ok) {
+        try {
+          const data = JSON.parse(text) as {
+            data?: {
+              user?: { id?: string; pk?: string | number; username?: string };
+            };
+          };
+          const u = data.data?.user;
+          const id =
+            u?.id || (u?.pk != null ? String(u.pk) : undefined);
+          if (id) {
+            logs.push({
+              step: `Kullanıcı ID (${host})`,
+              ok: true,
+              status: res.status,
+              detail: `id=${id} @${u?.username || username}`,
+            });
+            return { userId: id, cookie };
+          }
+        } catch {
+          // fallthrough
+        }
+      }
+      logs.push({
+        step: `Kullanıcı ID (${host})`,
+        ok: false,
+        status: res.status,
+        detail: "ID yok",
+        bodyPreview: previewBody(text),
+      });
+    } catch (e) {
+      logs.push({
+        step: `Kullanıcı ID (${host})`,
+        ok: false,
+        detail: e instanceof Error ? e.message : "Hata",
+      });
     }
-    logs.push({
-      step: "Kullanıcı ID (web_profile_info)",
-      ok: false,
-      status: res.status,
-      detail: res.status === 429 ? "Rate limit 429" : "ID alınamadı",
-      bodyPreview: previewBody(text),
-    });
-  } catch (e) {
-    logs.push({
-      step: "Kullanıcı ID",
-      ok: false,
-      detail: e instanceof Error ? e.message : "Hata",
-    });
   }
 
-  // HTML'den "profilePage_" veya "user_id"
+  // 2) HTML — sadece güvenilir pattern'ler
   try {
     const res = await fetch(
       `https://www.instagram.com/${encodeURIComponent(username)}/`,
@@ -510,25 +680,58 @@ async function resolveUserId(
     );
     const html = await res.text();
     cookie = mergeCookieHeader(cookie, getSetCookies(res));
-    const m =
-      html.match(/"profilePage_(\d+)"/) ||
-      html.match(/"user_id"\s*:\s*"(\d+)"/) ||
-      html.match(/"id"\s*:\s*"(\d{8,})"/);
-    if (m?.[1]) {
+
+    const patterns = [
+      /"profilePage_(\d+)"/,
+      /"logging_page_id"\s*:\s*"profilePage_(\d+)"/,
+      /"props"\s*:\s*\{\s*"id"\s*:\s*"(\d+)"/,
+      new RegExp(
+        `"username"\\s*:\\s*"${username}"[\\s\\S]{0,200}?"id"\\s*:\\s*"(\\d+)"`,
+        "i",
+      ),
+      new RegExp(
+        `"id"\\s*:\\s*"(\\d+)"[\\s\\S]{0,200}?"username"\\s*:\\s*"${username}"`,
+        "i",
+      ),
+      /"user_id"\s*:\s*"(\d+)"/,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m?.[1]) candidates.push(m[1]);
+    }
+    // unique preserve order
+    const uniq = [...new Set(candidates)];
+    for (const id of uniq) {
+      const v = await verifyUserId(id, username, cookie, logs);
+      cookie = v.cookie;
+      if (v.ok) {
+        logs.push({
+          step: "Kullanıcı ID (HTML+doğrulama)",
+          ok: true,
+          status: res.status,
+          detail: `user id = ${id}`,
+        });
+        return { userId: id, cookie };
+      }
+    }
+    if (uniq[0]) {
+      // doğrulama başarısız olsa da dene
       logs.push({
-        step: "Kullanıcı ID (HTML)",
+        step: "Kullanıcı ID (HTML aday)",
         ok: true,
         status: res.status,
-        detail: `user id = ${m[1]}`,
+        detail: `doğrulanamadı ama denenecek: ${uniq[0]} (adaylar: ${uniq.slice(0, 5).join(",")})`,
       });
-      return { userId: m[1], cookie };
+      return { userId: uniq[0], cookie };
     }
     logs.push({
       step: "Kullanıcı ID (HTML)",
       ok: false,
       status: res.status,
-      detail: "HTML içinde user id yok",
-      bodyPreview: previewBody(html.slice(0, 400)),
+      detail: "HTML içinde güvenilir user id yok",
+      bodyPreview: previewBody(
+        html.match(/<title>([^<]+)<\/title>/i)?.[1] || html.slice(0, 300),
+      ),
     });
   } catch (e) {
     logs.push({
@@ -541,7 +744,7 @@ async function resolveUserId(
   return { cookie };
 }
 
-/** sessionid ile tüm feed sayfalarını çek (foto + video + caption) */
+/** sessionid ile tüm feed sayfalarını çek */
 async function fetchAllViaUserFeed(
   userId: string,
   cookie: string,
@@ -552,20 +755,39 @@ async function fetchAllViaUserFeed(
   const seen = new Set<string>();
   let maxId: string | undefined;
   let page = 0;
-  const maxPages = Math.ceil(maxPosts / 12) + 2;
+  const maxPages = Math.ceil(maxPosts / 12) + 3;
+
+  const endpointBuilders = [
+    (id: string, mid?: string) => {
+      const u = new URL(
+        `https://i.instagram.com/api/v1/feed/user/${encodeURIComponent(id)}/`,
+      );
+      u.searchParams.set("count", "50");
+      if (mid) u.searchParams.set("max_id", mid);
+      return u.toString();
+    },
+    (id: string, mid?: string) => {
+      const u = new URL(
+        `https://www.instagram.com/api/v1/feed/user/${encodeURIComponent(id)}/`,
+      );
+      u.searchParams.set("count", "50");
+      if (mid) u.searchParams.set("max_id", mid);
+      return u.toString();
+    },
+  ];
+
+  let endpointIndex = 0;
 
   while (page < maxPages && items.length < maxPosts) {
     page += 1;
-    const url = new URL(
-      `https://i.instagram.com/api/v1/feed/user/${encodeURIComponent(userId)}/`,
-    );
-    url.searchParams.set("count", "50");
-    if (maxId) url.searchParams.set("max_id", maxId);
+    const build = endpointBuilders[endpointIndex] || endpointBuilders[0];
+    const url = build(userId, maxId);
 
     try {
-      if (page > 1) await sleep(800 + Math.random() * 600);
-      const res = await fetch(url.toString(), {
-        headers: appHeaders(cookie),
+      if (page > 1) await sleep(900 + Math.random() * 500);
+      const useApp = url.includes("i.instagram.com");
+      const res = await fetch(url, {
+        headers: useApp ? appHeaders(cookie) : webHeaders(cookie, true),
         signal: AbortSignal.timeout(30_000),
         cache: "no-store",
       });
@@ -577,7 +799,7 @@ async function fetchAllViaUserFeed(
           step: `Feed sayfa ${page}`,
           ok: false,
           status: 429,
-          detail: "Rate limit — bu ana kadar alınanlar kullanılacak",
+          detail: "Rate limit — durduruldu",
           bodyPreview: previewBody(text),
         });
         break;
@@ -587,18 +809,19 @@ async function fetchAllViaUserFeed(
           step: `Feed sayfa ${page}`,
           ok: false,
           status: res.status,
-          detail: `HTTP ${res.status}`,
+          detail: `HTTP ${res.status} · ${url.slice(0, 80)}`,
           bodyPreview: previewBody(text),
         });
+        // diğer endpoint'e geç
+        if (endpointIndex < endpointBuilders.length - 1 && page === 1) {
+          endpointIndex += 1;
+          page = 0;
+          continue;
+        }
         break;
       }
 
-      let data: {
-        items?: Record<string, unknown>[];
-        more_available?: boolean;
-        next_max_id?: string;
-        num_results?: number;
-      };
+      let data: unknown;
       try {
         data = JSON.parse(text);
       } catch {
@@ -612,11 +835,27 @@ async function fetchAllViaUserFeed(
         break;
       }
 
-      const batch = data.items || [];
+      // challenge / login mesajı
+      const root = data as Record<string, unknown>;
+      if (
+        root.message === "checkpoint_required" ||
+        root.message === "login_required" ||
+        root.require_login
+      ) {
+        logs.push({
+          step: `Feed sayfa ${page}`,
+          ok: false,
+          status: res.status,
+          detail: String(root.message || "login_required"),
+          bodyPreview: previewBody(text),
+        });
+        break;
+      }
+
+      const parsed = parseFeedPayload(data);
       let added = 0;
-      for (const raw of batch) {
-        const item = postObjectToItem(raw);
-        if (!item || seen.has(item.id)) continue;
+      for (const item of parsed.items) {
+        if (seen.has(item.id)) continue;
         seen.add(item.id);
         items.push(item);
         added += 1;
@@ -627,13 +866,25 @@ async function fetchAllViaUserFeed(
         step: `Feed sayfa ${page}`,
         ok: added > 0,
         status: res.status,
-        detail: `+${added} gönderi (toplam ${items.length})${
-          data.more_available ? " · devam var" : " · son"
+        detail: `+${added} gönderi (toplam ${items.length}) · ${parsed.meta}${
+          parsed.more ? " · devam var" : " · son"
         }`,
+        bodyPreview:
+          added === 0
+            ? previewBody(text, 900)
+            : undefined,
       });
 
-      if (!data.more_available || !data.next_max_id || added === 0) break;
-      maxId = data.next_max_id;
+      // İlk sayfa boşsa alternatif endpoint dene
+      if (added === 0 && page === 1 && endpointIndex < endpointBuilders.length - 1) {
+        endpointIndex += 1;
+        page = 0;
+        maxId = undefined;
+        continue;
+      }
+
+      if (!parsed.more || !parsed.nextMaxId || added === 0) break;
+      maxId = parsed.nextMaxId;
     } catch (e) {
       logs.push({
         step: `Feed sayfa ${page}`,
@@ -805,6 +1056,33 @@ export async function fetchInstagramByUsername(
         );
         cookie = feed.cookie;
         items = feed.items;
+
+        // Bazen numeric id boş döner; username path dene
+        if (items.length === 0) {
+          logs.push({
+            step: "Feed yedek",
+            ok: false,
+            detail: `id=${resolved.userId} ile 0 sonuç — username path denenecek`,
+          });
+          const alt = await fetchAllViaUserFeed(
+            username,
+            cookie,
+            maxPosts,
+            logs,
+          );
+          // username path yanlış olabilir; sadece sonuç varsa al
+          if (alt.items.length > items.length) {
+            items = alt.items;
+            cookie = alt.cookie;
+          }
+        }
+      } else {
+        logs.push({
+          step: "Feed",
+          ok: false,
+          detail:
+            "user id bulunamadı — sessionid geçersiz/eksik olabilir veya Instagram engelliyor",
+        });
       }
     }
 
