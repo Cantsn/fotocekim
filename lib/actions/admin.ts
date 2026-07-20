@@ -1092,13 +1092,14 @@ export async function testSmtpAction(): Promise<ActionState> {
   return { ok: true, message: "SMTP bağlantısı başarılı." };
 }
 
-// ---------- Instagram → Portföy (sadece kullanıcı adı) ----------
+// ---------- Instagram → Portföy (kullanıcı adı + opsiyonel sessionid) ----------
 export async function loadInstagramFeedAction(
   formData: FormData,
 ): Promise<{
   error?: string;
   username?: string;
   items?: Awaited<ReturnType<typeof fetchInstagramByUsername>>["items"];
+  debug?: Awaited<ReturnType<typeof fetchInstagramByUsername>>["debug"];
 }> {
   await requirePermission("portfolio");
   const username = normalizeInstagramUsername(
@@ -1106,19 +1107,33 @@ export async function loadInstagramFeedAction(
   );
   if (!username) return { error: "Instagram kullanıcı adı girin." };
 
-  const result = await fetchInstagramByUsername(username, 40);
-  if (result.error) return { error: result.error, username: result.username };
-  return { items: result.items, username: result.username };
+  const sessionCookie = String(formData.get("sessionCookie") ?? "");
+  const result = await fetchInstagramByUsername(username, 40, {
+    sessionCookie,
+  });
+  if (result.error) {
+    return {
+      error: result.error,
+      username: result.username,
+      debug: result.debug,
+    };
+  }
+  return {
+    items: result.items,
+    username: result.username,
+    debug: result.debug,
+  };
 }
 
 export async function importInstagramMediaAction(
   formData: FormData,
-): Promise<ActionState> {
+): Promise<ActionState & { debug?: Awaited<ReturnType<typeof fetchInstagramByUsername>>["debug"] }> {
   await requirePermission("portfolio");
 
   const username = normalizeInstagramUsername(
     String(formData.get("username") ?? ""),
   );
+  const sessionCookie = String(formData.get("sessionCookie") ?? "");
   const ids = formData
     .getAll("mediaId")
     .map((v) => String(v))
@@ -1131,8 +1146,10 @@ export async function importInstagramMediaAction(
   const published = parseBool(formData.get("published"));
   const forceCategory = String(formData.get("category") ?? "").trim();
 
-  const feed = await fetchInstagramByUsername(username, 50);
-  if (feed.error) return { error: feed.error };
+  const feed = await fetchInstagramByUsername(username, 50, { sessionCookie });
+  if (feed.error) {
+    return { error: feed.error, debug: feed.debug };
+  }
 
   const selected = feed.items.filter((i) => ids.includes(i.id));
   if (selected.length === 0) {

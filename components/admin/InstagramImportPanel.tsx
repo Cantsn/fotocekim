@@ -5,11 +5,26 @@ import {
   importInstagramMediaAction,
   loadInstagramFeedAction,
 } from "@/lib/actions/admin";
-import type { IgMediaItem } from "@/lib/instagram";
+import type { IgAttemptLog, IgMediaItem } from "@/lib/instagram";
 import { normalizeInstagramUsername } from "@/lib/instagram";
 import { CATEGORY_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Camera, Film, Loader2, RefreshCw } from "lucide-react";
+import {
+  Camera,
+  ChevronDown,
+  Film,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+
+type DebugInfo = {
+  summary: string;
+  attempts: IgAttemptLog[];
+  usedSession: boolean;
+  tips: string[];
+};
+
+const SESSION_KEY = "ig_sessionid_v1";
 
 export function InstagramImportPanel({
   defaultUsername = "",
@@ -17,12 +32,24 @@ export function InstagramImportPanel({
   defaultUsername?: string;
 }) {
   const [username, setUsername] = useState(
-    normalizeInstagramUsername(defaultUsername) || defaultUsername.replace(/^@/, ""),
+    normalizeInstagramUsername(defaultUsername) ||
+      defaultUsername.replace(/^@/, ""),
   );
+  const [sessionCookie, setSessionCookie] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return sessionStorage.getItem(SESSION_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [showSession, setShowSession] = useState(false);
   const [loadedUser, setLoadedUser] = useState("");
   const [items, setItems] = useState<IgMediaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [debug, setDebug] = useState<DebugInfo | null>(null);
+  const [debugOpen, setDebugOpen] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [onlyWedding, setOnlyWedding] = useState(true);
   const [category, setCategory] = useState("auto");
@@ -39,9 +66,20 @@ export function InstagramImportPanel({
     [selected],
   );
 
+  const persistSession = (value: string) => {
+    setSessionCookie(value);
+    try {
+      if (value.trim()) sessionStorage.setItem(SESSION_KEY, value.trim());
+      else sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
   const load = () => {
     setError(null);
     setMessage(null);
+    setDebug(null);
     const u = normalizeInstagramUsername(username);
     if (!u) {
       setError("Instagram kullanıcı adı girin (ör. studionuz).");
@@ -49,8 +87,13 @@ export function InstagramImportPanel({
     }
     const fd = new FormData();
     fd.set("username", u);
+    if (sessionCookie.trim()) fd.set("sessionCookie", sessionCookie.trim());
     startTransition(async () => {
       const res = await loadInstagramFeedAction(fd);
+      if (res.debug) {
+        setDebug(res.debug as DebugInfo);
+        setDebugOpen(true);
+      }
       if (res.error) {
         setError(res.error);
         setItems([]);
@@ -63,6 +106,8 @@ export function InstagramImportPanel({
       setMessage(
         `@${res.username || u} — ${res.items?.length ?? 0} gönderi yüklendi.`,
       );
+      // Başarıda da debug özeti (hangi yol çalıştı)
+      if (res.debug) setDebugOpen(false);
     });
   };
 
@@ -89,11 +134,16 @@ export function InstagramImportPanel({
     setMessage(null);
     const fd = new FormData();
     fd.set("username", loadedUser);
+    if (sessionCookie.trim()) fd.set("sessionCookie", sessionCookie.trim());
     for (const id of selectedIds) fd.append("mediaId", id);
     fd.set("category", category);
     if (published) fd.set("published", "on");
     startTransition(async () => {
       const res = await importInstagramMediaAction(fd);
+      if (res.debug) {
+        setDebug(res.debug as DebugInfo);
+        setDebugOpen(true);
+      }
       if (res.error) {
         setError(res.error);
         return;
@@ -143,10 +193,67 @@ export function InstagramImportPanel({
             </button>
           </div>
         </label>
-        <p className="mt-2 text-xs text-muted">
-          API veya token gerekmez. Hesap <strong>herkese açık</strong> olmalı.
-          Profil linki de yapıştırabilirsiniz.
-        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowSession((v) => !v)}
+          className="mt-3 flex w-full items-center justify-between rounded-xl border border-border bg-muted-bg/50 px-3 py-2 text-left text-xs text-muted hover:border-accent/40"
+        >
+          <span>
+            Bot engelini aşmak için (önerilir): tarayıcı{" "}
+            <strong className="text-foreground">sessionid</strong> çerezi
+            {sessionCookie.trim() ? " · kayıtlı" : ""}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 transition",
+              showSession && "rotate-180",
+            )}
+          />
+        </button>
+
+        {showSession && (
+          <div className="mt-2 space-y-2 rounded-xl border border-border bg-muted-bg/30 p-3">
+            <p className="text-[11px] leading-relaxed text-muted">
+              1) Chrome’da{" "}
+              <a
+                href="https://www.instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline"
+              >
+                instagram.com
+              </a>{" "}
+              hesabınıza giriş yapın
+              <br />
+              2) F12 → Application → Cookies → https://www.instagram.com
+              <br />
+              3) <code className="text-foreground">sessionid</code> satırının
+              Value değerini kopyalayıp aşağı yapıştırın
+              <br />
+              4) Bu değer yalnızca bu tarayıcı oturumunda saklanır (sunucuya
+              kalıcı yazılmaz)
+            </p>
+            <input
+              value={sessionCookie}
+              onChange={(e) => persistSession(e.target.value)}
+              className="w-full rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted/70 focus:border-accent focus:outline-none"
+              placeholder="sessionid değeri veya sessionid=..."
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {sessionCookie.trim() && (
+              <button
+                type="button"
+                onClick={() => persistSession("")}
+                className="text-[11px] text-danger hover:underline"
+              >
+                sessionid’yi temizle
+              </button>
+            )}
+          </div>
+        )}
+
         <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
           <input
             type="checkbox"
@@ -159,14 +266,86 @@ export function InstagramImportPanel({
       </div>
 
       {error && (
-        <p className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {error}
-        </p>
+        <div className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <p className="font-medium">Hata</p>
+          <p className="mt-1 whitespace-pre-wrap">{error}</p>
+        </div>
       )}
       {message && (
         <p className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           {message}
         </p>
+      )}
+
+      {debug && (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setDebugOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm"
+          >
+            <span className="font-medium text-foreground">
+              Teknik detay / Instagram yanıtı
+            </span>
+            <span className="text-xs text-muted">
+              {debug.usedSession ? "sessionid kullanıldı" : "sessionid yok"} ·{" "}
+              {debug.attempts.length} adım
+            </span>
+          </button>
+          {debugOpen && (
+            <div className="space-y-3 border-t border-border px-4 py-3 text-xs">
+              <p className="text-muted">
+                <strong className="text-foreground">Özet:</strong>{" "}
+                {debug.summary}
+              </p>
+              {debug.tips.length > 0 && (
+                <ul className="list-disc space-y-1 pl-4 text-muted">
+                  {debug.tips.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="space-y-2">
+                {debug.attempts.map((a, i) => (
+                  <div
+                    key={`${a.step}-${i}`}
+                    className={cn(
+                      "rounded-xl border px-3 py-2",
+                      a.ok
+                        ? "border-success/30 bg-success/5"
+                        : "border-border bg-muted-bg/50",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                          a.ok
+                            ? "bg-success/20 text-success"
+                            : "bg-danger/15 text-danger",
+                        )}
+                      >
+                        {a.ok ? "OK" : "FAIL"}
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {a.step}
+                      </span>
+                      {a.status != null && (
+                        <span className="text-muted">HTTP {a.status}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-muted">{a.detail}</p>
+                    {a.bodyPreview && (
+                      <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-background/80 p-2 font-mono text-[10px] leading-relaxed text-muted">
+                        {a.bodyPreview}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {items.length > 0 && (
